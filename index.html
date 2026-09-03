@@ -739,6 +739,7 @@ function refreshLists(){
 // AUTH
 // ========================================================
 function doLogin(){
+  PINS=loadJSON(PINS_KEY,{pm:'1234',gm:'4321'}); // always fresh read
   const role=document.getElementById('loginRole').value;
   const pin=document.getElementById('loginPin').value;
   if(pin!==PINS[role]){document.getElementById('loginErr').textContent='Wrong PIN. Try again.';return}
@@ -764,7 +765,21 @@ function doLogin(){
   }
 }
 function doLogout(){currentRole=null;document.getElementById('loginPage').classList.remove('hide');document.getElementById('app').classList.add('hide');document.getElementById('loginPin').value='';document.getElementById('loginErr').textContent=''}
-function savePins(){const pm=document.getElementById('set_pmpin').value;const gm=document.getElementById('set_gmpin').value;if(pm)PINS.pm=pm;if(gm)PINS.gm=gm;saveJSON(PINS_KEY,PINS);toast('PINs updated')}
+function savePins(){
+  const pm=document.getElementById('set_pmpin').value.trim();
+  const gm=document.getElementById('set_gmpin').value.trim();
+  if(!pm&&!gm){toast('Koi PIN nahi daala',true);return}
+  if(pm&&pm.length!==4){toast('PM PIN exactly 4 digits hona chahiye',true);return}
+  if(gm&&gm.length!==4){toast('GM PIN exactly 4 digits hona chahiye',true);return}
+  if(pm&&!/^\d{4}$/.test(pm)){toast('PIN sirf numbers (0-9)',true);return}
+  if(gm&&!/^\d{4}$/.test(gm)){toast('PIN sirf numbers (0-9)',true);return}
+  if(pm) PINS.pm=pm;
+  if(gm) PINS.gm=gm;
+  saveJSON(PINS_KEY,PINS);
+  document.getElementById('set_pmpin').value='';
+  document.getElementById('set_gmpin').value='';
+  toast('✓ PIN updated — next login me naya PIN use karo');
+}
 
 // ========================================================
 // TABS
