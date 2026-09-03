@@ -22,6 +22,8 @@
   const COL = 'pm_purchases'; // alag collection — Birthday Tracker se mix nahi hoga
 
   // expose to main script
+  const SETS_COL = 'pm_settings'; // pins + settings yahan save honge
+
   window._fb = {
     async saveEntry(entry) {
       try { await setDoc(doc(db, COL, entry.id), entry); return true; }
@@ -41,6 +43,23 @@
       const batch = entries.map(e => setDoc(doc(db, COL, e.id), e));
       try { await Promise.all(batch); return true; }
       catch(e) { console.error('FB batch:', e); return false; }
+    },
+    // PINS + SETTINGS Firebase sync
+    async saveSetting(key, value) {
+      try { await setDoc(doc(db, SETS_COL, key), { value, updatedAt: new Date().toISOString() }); return true; }
+      catch(e) { console.error('FB saveSetting:', e); return false; }
+    },
+    async loadSetting(key) {
+      try { const d = await getDocs(query(collection(db, SETS_COL))); const found = d.docs.find(x=>x.id===key); return found?found.data().value:null; }
+      catch(e) { console.error('FB loadSetting:', e); return null; }
+    },
+    async loadAllSettings() {
+      try {
+        const snap = await getDocs(collection(db, SETS_COL));
+        const result = {};
+        snap.docs.forEach(d => result[d.id] = d.data().value);
+        return result;
+      } catch(e) { console.error('FB loadAllSettings:', e); return null; }
     }
   };
 
@@ -616,11 +635,12 @@ tfoot td{font-weight:800;background:#f0f5f3;border-top:2px solid var(--teal);fon
         <button class="btn btn-ghost btn-sm" style="margin-top:10px" onclick="clearMappings()">Clear All Saved Mappings</button>
       </div>
     </div>
-    <div class="card"><div class="card-head"><h2>Pins</h2></div>
+    <div class="card"><div class="card-head"><h2>Pins</h2><span id="pinSyncStatus" style="font-size:12px;color:var(--ink3)"></span></div>
       <div class="card-body" style="display:flex;flex-direction:column;gap:10px">
-        <div><label class="lbl">PM PIN</label><input type="password" id="set_pmpin" maxlength="4" placeholder="Current: 1234"></div>
-        <div><label class="lbl">GM PIN</label><input type="password" id="set_gmpin" maxlength="4" placeholder="Current: 4321"></div>
-        <button class="btn btn-teal btn-sm" onclick="savePins()">Update PINs</button>
+        <div class="alert-info" style="font-size:12px">PIN update hone ke baad <strong>sab devices pe automatically apply</strong> hoga (Firebase sync).</div>
+        <div><label class="lbl">New PM PIN (4 digits)</label><input type="password" id="set_pmpin" maxlength="4" placeholder="Leave blank to keep current" inputmode="numeric"></div>
+        <div><label class="lbl">New GM PIN (4 digits)</label><input type="password" id="set_gmpin" maxlength="4" placeholder="Leave blank to keep current" inputmode="numeric"></div>
+        <button class="btn btn-teal btn-sm" onclick="savePins()">🔒 Update PINs (sync to all devices)</button>
       </div>
     </div>
     <div class="card"><div class="card-head"><h2>Data Management</h2></div>
@@ -753,11 +773,19 @@ function doLogin(){
   // load from Firebase (overrides local if cloud has newer data)
   if(window._fbReady){
     document.getElementById('fbStatusDot').textContent='⏳ Syncing...';
-    window._fb.loadAll().then(rows=>{
+    // Pehle settings/pins load karo
+    window._fb.loadAllSettings().then(sets=>{
+      if(sets){
+        if(sets.pins){PINS={...PINS,...sets.pins};saveJSON(PINS_KEY,PINS)}
+        if(sets.appSettings){SETS={...SETS,...sets.appSettings};saveJSON(SETS_KEY,SETS)}
+      }
+      // Phir data load karo
+      return window._fb.loadAll();
+    }).then(rows=>{
       if(rows&&rows.length>=DATA.length){
         DATA=migrateLegacy(rows);persist();refreshLists();renderDashboard();
         document.getElementById('fbStatusDot').textContent='☁ Cloud';
-        toast(`Cloud se ${DATA.length} entries loaded`);
+        toast('☁ Cloud se sync ho gaya');
       } else {
         document.getElementById('fbStatusDot').textContent='☁ Cloud';
       }
@@ -778,7 +806,14 @@ function savePins(){
   saveJSON(PINS_KEY,PINS);
   document.getElementById('set_pmpin').value='';
   document.getElementById('set_gmpin').value='';
-  toast('✓ PIN updated — next login me naya PIN use karo');
+  // Firebase me bhi sync karo — sab devices pe update hoga
+  if(window._fbReady){
+    window._fb.saveSetting('pins', PINS).then(ok=>{
+      toast(ok?'✓ PIN updated — sab devices pe apply hoga':'✓ PIN locally updated (cloud sync failed)',!ok);
+    });
+  } else {
+    toast('✓ PIN locally updated — internet se connect hone pe sync hoga');
+  }
 }
 
 // ========================================================
@@ -813,7 +848,14 @@ function setDefaults(){
   document.getElementById('exp_from').value=t.slice(0,7)+'-01';
   document.getElementById('exp_to').value=t;
 }
-function saveSettings(){SETS.prop=document.getElementById('set_prop').value||'Ginger Jaipur';SETS.tol=+document.getElementById('set_tol').value||0.5;saveJSON(SETS_KEY,SETS);toast('Settings saved')}
+function saveSettings(){
+  SETS.prop=document.getElementById('set_prop').value||'Ginger Jaipur';
+  SETS.tol=+document.getElementById('set_tol').value||0.5;
+  saveJSON(SETS_KEY,SETS);
+  if(window._fbReady){
+    window._fb.saveSetting('appSettings', SETS).then(ok=>toast(ok?'✓ Settings saved & synced':'Settings saved locally',!ok));
+  } else toast('Settings saved');
+}
 
 // ========================================================
 // CSV IMPORT ENGINE
