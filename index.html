@@ -1807,16 +1807,50 @@ function restore(ev){
       const o=JSON.parse(r.result);
       const arr=Array.isArray(o)?o:o.entries;
       if(!Array.isArray(arr))throw 0;
-      if(!confirm(`Restore: ${arr.length} entries aayenge (mojooda data replace hoga).`))return;
-      DATA=migrateLegacy(arr);
-      if(o.maps)MAPS=o.maps;
-      if(o.settings)SETS=o.settings;
-      persist();saveJSON(MAPS_KEY,MAPS);saveJSON(SETS_KEY,SETS);
-      refreshLists();setDefaults();renderDashboard();
-      if(window._fbReady){
-        window._fb.saveMany(DATA).then(ok=>toast(ok?`Restored & synced ${DATA.length} entries to cloud`:`Restored locally — cloud sync failed`,!ok));
-      } else toast(`Restored ${DATA.length} entries`);
-    }catch{toast('Invalid backup file',true)}
+
+      // Ask: Replace or Merge?
+      const choice=confirm(
+        `File me ${arr.length} entries hain.\n\n`+
+        `OK = MERGE (purana data safe rahega, naya add hoga — RECOMMENDED)\n`+
+        `Cancel = REPLACE (purana sab delete hoga, sirf naya aayega)`
+      );
+
+      if(choice){
+        // MERGE — existing bill keys check karke sirf naye add karo
+        const existingKeys=new Set(DATA.map(d=>d.id));
+        const existingBillKeys=new Set(DATA.map(d=>d.billKey));
+        const newEntries=migrateLegacy(arr).filter(e=>!existingKeys.has(e.id));
+        // Duplicate bill warning
+        const dupBills=newEntries.filter(e=>existingBillKeys.has(e.billKey));
+        const dupBillKeys=[...new Set(dupBills.map(e=>e.billKey))];
+        let proceed=true;
+        if(dupBillKeys.length>0){
+          proceed=confirm(
+            `${dupBillKeys.length} duplicate bill(s) found:\n${dupBillKeys.slice(0,5).join('\n')}\n\nInhe bhi add karein?`
+          );
+        }
+        const toAdd=proceed?newEntries:newEntries.filter(e=>!existingBillKeys.has(e.billKey));
+        DATA=[...DATA,...toAdd];
+        if(o.maps)MAPS={...MAPS,...o.maps};
+        if(o.settings)SETS={...SETS,...o.settings};
+        persist();saveJSON(MAPS_KEY,MAPS);saveJSON(SETS_KEY,SETS);
+        refreshLists();setDefaults();renderDashboard();
+        if(window._fbReady){
+          window._fb.saveMany(toAdd).then(ok=>toast(ok?`✓ Merged: ${toAdd.length} new entries added & synced (${DATA.length} total)`:`✓ Merged locally: ${toAdd.length} added`,!ok));
+        } else toast(`✓ Merged: ${toAdd.length} new entries added (${DATA.length} total)`);
+      } else {
+        // REPLACE
+        if(!confirm('Pakka? Mojooda SABA data delete hoga.'))return;
+        DATA=migrateLegacy(arr);
+        if(o.maps)MAPS=o.maps;
+        if(o.settings)SETS=o.settings;
+        persist();saveJSON(MAPS_KEY,MAPS);saveJSON(SETS_KEY,SETS);
+        refreshLists();setDefaults();renderDashboard();
+        if(window._fbReady){
+          window._fb.saveMany(DATA).then(ok=>toast(ok?`Replaced & synced: ${DATA.length} entries`:`Replaced locally`,!ok));
+        } else toast(`Replaced: ${DATA.length} entries`);
+      }
+    }catch(e){console.error(e);toast('Invalid backup file',true)}
   };r.readAsText(f);ev.target.value='';
 }
 function clearAllData(){if(!confirm('ALL DATA DELETE? Ye undo nahi hoga.'))return;if(!confirm('Pakka? SARI entries delete hongi.'))return;DATA=[];persist();refreshLists();renderDashboard();toast('All data cleared')}
