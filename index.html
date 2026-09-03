@@ -247,6 +247,7 @@ tfoot td{font-weight:800;background:#f0f5f3;border-top:2px solid var(--teal);fon
   <button onclick="showTab('monthly')" id="nb-monthly">📆 Monthly MIS</button>
   <button onclick="showTab('audit')" id="nb-audit">🔒 Audit</button>
   <button onclick="showTab('products')" id="nb-products">📦 Products</button>
+  <button onclick="showTab('dataeditor')" id="nb-dataeditor" class="pm-only">✏ Data Editor</button>
   <button onclick="showTab('exportcenter')" id="nb-exportcenter" class="pm-only">⬇ Export</button>
   <button onclick="showTab('settings')" id="nb-settings" class="pm-only">⚙ Settings</button>
 </div>
@@ -654,6 +655,151 @@ tfoot td{font-weight:800;background:#f0f5f3;border-top:2px solid var(--teal);fon
   </div>
 </div>
 
+
+<!-- ======= DATA EDITOR ======= -->
+<div id="tab-dataeditor" class="hide">
+  <!-- FILTERS -->
+  <div class="card">
+    <div class="card-head">
+      <h2>Data Editor</h2>
+      <div class="rowbtns">
+        <span id="de_selcount" style="font-size:12px;color:var(--ink3)">0 selected</span>
+        <button class="btn btn-ghost btn-sm" onclick="deSelectAll()">Select All</button>
+        <button class="btn btn-ghost btn-sm" onclick="deSelectNone()">Deselect All</button>
+        <button class="btn btn-teal btn-sm" onclick="deBulkEdit()" id="de_bulkbtn" disabled>Bulk Edit Selected</button>
+        <button class="btn btn-primary btn-sm" onclick="deSaveAll()">💾 Save All Changes</button>
+      </div>
+    </div>
+    <div class="card-body">
+      <div class="grid g4" style="margin-bottom:10px">
+        <div><label class="lbl">From Date</label><input type="date" id="de_from" onchange="renderDataEditor()"></div>
+        <div><label class="lbl">To Date</label><input type="date" id="de_to" onchange="renderDataEditor()"></div>
+        <div><label class="lbl">Vendor</label>
+          <input list="dl_de_vend" id="de_vend" placeholder="All" oninput="renderDataEditor()">
+          <datalist id="dl_de_vend"></datalist></div>
+        <div><label class="lbl">Group</label>
+          <input list="dl_de_grp" id="de_grp" placeholder="All" oninput="renderDataEditor()">
+          <datalist id="dl_de_grp"></datalist></div>
+        <div><label class="lbl">Category</label>
+          <input list="dl_de_cat" id="de_cat" placeholder="All" oninput="renderDataEditor()">
+          <datalist id="dl_de_cat"></datalist></div>
+        <div><label class="lbl">Department</label>
+          <input list="dl_de_dept" id="de_dept" placeholder="All" oninput="renderDataEditor()">
+          <datalist id="dl_de_dept"></datalist></div>
+        <div><label class="lbl">Status</label>
+          <select id="de_stat" onchange="renderDataEditor()">
+            <option value="">All</option>
+            <option>Pending</option><option>Paid</option><option>Partially Paid</option>
+          </select></div>
+        <div><label class="lbl">Audit</label>
+          <select id="de_audit" onchange="renderDataEditor()">
+            <option value="">All</option>
+            <option>OK</option><option>WARNING</option><option>ERROR</option>
+          </select></div>
+      </div>
+      <div id="de_stats" style="font-size:12px;color:var(--ink3);margin-top:4px"></div>
+    </div>
+  </div>
+
+  <!-- BULK EDIT PANEL (hidden by default) -->
+  <div id="de_bulkPanel" class="card hide">
+    <div class="card-head"><h2>Bulk Edit — Selected Rows</h2>
+      <button class="btn btn-ghost btn-sm" onclick="document.getElementById('de_bulkPanel').classList.add('hide')">✕ Close</button>
+    </div>
+    <div class="card-body">
+      <div class="alert-info" style="margin-bottom:12px">Sirf jo fields bharo — baaki unchanged rahenge. Sab selected rows pe apply hoga.</div>
+      <div class="grid g4">
+        <div><label class="lbl">Department</label>
+          <input list="dl_de_dept2" id="bulk_dept" placeholder="Leave blank = no change">
+          <datalist id="dl_de_dept2"></datalist></div>
+        <div><label class="lbl">Group</label>
+          <input list="dl_de_grp2" id="bulk_grp" placeholder="Leave blank = no change">
+          <datalist id="dl_de_grp2"></datalist></div>
+        <div><label class="lbl">Category</label>
+          <input list="dl_de_cat2" id="bulk_cat" placeholder="Leave blank = no change">
+          <datalist id="dl_de_cat2"></datalist></div>
+        <div><label class="lbl">Payment Status</label>
+          <select id="bulk_stat">
+            <option value="">-- No change --</option>
+            <option>Pending</option><option>Paid</option><option>Partially Paid</option>
+          </select></div>
+        <div><label class="lbl">Invoice Type</label>
+          <select id="bulk_invtype">
+            <option value="">-- No change --</option>
+            <option>GST</option><option>Non-GST</option><option>Cash</option><option>Credit</option>
+          </select></div>
+        <div><label class="lbl">Audit Status</label>
+          <select id="bulk_audit">
+            <option value="">-- No change --</option>
+            <option>OK</option><option>WARNING</option><option>ERROR</option>
+          </select></div>
+      </div>
+      <div class="rowbtns" style="margin-top:14px">
+        <button class="btn btn-primary" onclick="doBulkApply()">✅ Apply to Selected Rows</button>
+        <button class="btn btn-ghost" onclick="deBulkClear()">Clear Fields</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- DATA TABLE -->
+  <div class="card">
+    <div class="tablewrap" style="max-height:600px">
+      <table id="de_table">
+        <thead><tr>
+          <th class="c"><input type="checkbox" id="de_checkall" onchange="deToggleAll(this.checked)"></th>
+          <th>Date</th><th>Vendor</th><th>Invoice</th><th>Item</th>
+          <th>Group</th><th>Category</th><th>Department</th>
+          <th class="r">Qty</th><th class="r">Rate</th><th class="r">Net</th>
+          <th>Status</th><th>Audit</th><th class="c">Actions</th>
+        </tr></thead>
+        <tbody id="de_tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- INLINE EDIT MODAL -->
+  <div id="de_editModal" class="modal-overlay hide">
+    <div class="modal" style="max-width:780px">
+      <div class="modal-head">
+        <h3 id="de_modalTitle">Edit Entry</h3>
+        <button class="cbtn" onclick="deCloseModal()">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="grid g3" style="gap:12px">
+          <div><label class="lbl">Purchase Date</label><input type="date" id="de_e_date"></div>
+          <div><label class="lbl">Vendor</label><input list="dl_de_mv" id="de_e_vend"><datalist id="dl_de_mv"></datalist></div>
+          <div><label class="lbl">Invoice No</label><input id="de_e_inv"></div>
+          <div><label class="lbl">GRN</label><input id="de_e_grn"></div>
+          <div><label class="lbl">Department</label><input list="dl_de_md" id="de_e_dept"><datalist id="dl_de_md"></datalist></div>
+          <div><label class="lbl">Invoice Type</label>
+            <select id="de_e_invtype"><option>GST</option><option>Non-GST</option><option>Cash</option><option>Credit</option></select></div>
+          <div><label class="lbl">Group</label><input list="dl_de_mg" id="de_e_grp"><datalist id="dl_de_mg"></datalist></div>
+          <div><label class="lbl">Category</label><input list="dl_de_mc" id="de_e_cat"><datalist id="dl_de_mc"></datalist></div>
+          <div><label class="lbl">Item Name</label><input id="de_e_item"></div>
+          <div><label class="lbl">Unit</label><input id="de_e_unit"></div>
+          <div><label class="lbl">Qty</label><input type="number" id="de_e_qty" step="any" oninput="deCalcModal()"></div>
+          <div><label class="lbl">Rate</label><input type="number" id="de_e_rate" step="any" oninput="deCalcModal()"></div>
+          <div><label class="lbl">GST %</label><input type="number" id="de_e_gstp" step="any" min="0" max="28" oninput="deCalcModal()"></div>
+          <div><label class="lbl">Taxable (auto)</label><input readonly id="de_e_tax" style="background:var(--teal3);font-weight:700"></div>
+          <div><label class="lbl">GST Amt (auto)</label><input readonly id="de_e_gsta" style="background:var(--teal3)"></div>
+          <div><label class="lbl">Net (auto)</label><input readonly id="de_e_net" style="background:var(--teal3);font-weight:700;color:var(--teal)"></div>
+          <div><label class="lbl">Payment Status</label>
+            <select id="de_e_stat"><option>Pending</option><option>Paid</option><option>Partially Paid</option></select></div>
+          <div><label class="lbl">Due Date</label><input type="date" id="de_e_due"></div>
+          <div><label class="lbl">Audit</label>
+            <select id="de_e_audit"><option>OK</option><option>WARNING</option><option>ERROR</option></select></div>
+          <div style="grid-column:span 3"><label class="lbl">Notes</label><input id="de_e_notes"></div>
+        </div>
+        <div class="rowbtns" style="margin-top:18px">
+          <button class="btn btn-primary" onclick="deSaveModal()">💾 Save Entry</button>
+          <button class="btn btn-ghost" onclick="deCloseModal()">Cancel</button>
+          <button class="btn btn-danger btn-sm" onclick="deDeleteModal()" style="margin-left:auto">🗑 Delete Entry</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
 </main>
 </div>
 
@@ -836,6 +982,7 @@ function showTab(n){
   if(n==='audit')renderAudit();
   if(n==='products')renderProducts();
   if(n==='settings'){renderVendorProfiles();document.getElementById('totalEntries').textContent=DATA.length;document.getElementById('set_prop').value=SETS.prop;document.getElementById('set_tol').value=SETS.tol}
+  if(n==='dataeditor'){renderDataEditor()}
 }
 function setDefaults(){
   const t=today();
@@ -847,6 +994,8 @@ function setDefaults(){
   document.getElementById('mis_month').value=t.slice(0,7);
   document.getElementById('exp_from').value=t.slice(0,7)+'-01';
   document.getElementById('exp_to').value=t;
+  document.getElementById('de_from').value=t.slice(0,7)+'-01';
+  document.getElementById('de_to').value=t;
 }
 function saveSettings(){
   SETS.prop=document.getElementById('set_prop').value||'Ginger Jaipur';
@@ -1672,6 +1821,243 @@ function restore(ev){
 }
 function clearAllData(){if(!confirm('ALL DATA DELETE? Ye undo nahi hoga.'))return;if(!confirm('Pakka? SARI entries delete hongi.'))return;DATA=[];persist();refreshLists();renderDashboard();toast('All data cleared')}
 function closeDupModal(){document.getElementById('dupModal').classList.add('hide')}
+
+// ========================================================
+// DATA EDITOR
+// ========================================================
+let DE_ROWS = [];      // filtered rows (refs to DATA)
+let DE_SELECTED = new Set(); // selected entry ids
+let DE_EDIT_ID = null; // currently editing entry id
+
+function deRefreshLists(){
+  const f=(id,arr)=>{const el=document.getElementById(id);if(el)el.innerHTML=arr.map(v=>`<option value="${esc(v)}">`).join('')};
+  const vends=[...new Set(DATA.map(d=>d.vendor).filter(Boolean))].sort();
+  const grps=[...new Set(DATA.map(d=>d.group).filter(Boolean))].sort();
+  const cats=[...new Set(DATA.map(d=>d.category).filter(Boolean))].sort();
+  const depts=[...new Set(DATA.map(d=>d.department).filter(Boolean))].sort();
+  ['dl_de_vend','dl_de_mv'].forEach(id=>f(id,vends));
+  ['dl_de_grp','dl_de_grp2','dl_de_mg'].forEach(id=>f(id,grps));
+  ['dl_de_cat','dl_de_cat2','dl_de_mc'].forEach(id=>f(id,cats));
+  ['dl_de_dept','dl_de_dept2','dl_de_md'].forEach(id=>f(id,depts));
+}
+
+function deGetFiltered(){
+  const from=document.getElementById('de_from').value;
+  const to=document.getElementById('de_to').value;
+  const vend=document.getElementById('de_vend').value.trim();
+  const grp=document.getElementById('de_grp').value.trim();
+  const cat=document.getElementById('de_cat').value.trim();
+  const dept=document.getElementById('de_dept').value.trim();
+  const stat=document.getElementById('de_stat').value;
+  const audit=document.getElementById('de_audit').value;
+  return DATA.filter(d=>{
+    if(from&&d.purchaseDate<from)return false;
+    if(to&&d.purchaseDate>to)return false;
+    if(vend&&d.vendor!==vend)return false;
+    if(grp&&d.group!==grp)return false;
+    if(cat&&d.category!==cat)return false;
+    if(dept&&d.department!==dept)return false;
+    if(stat&&d.paymentStatus!==stat)return false;
+    if(audit&&d.audit!==audit)return false;
+    return true;
+  });
+}
+
+function renderDataEditor(){
+  deRefreshLists();
+  DE_ROWS=deGetFiltered();
+  const total=DE_ROWS.reduce((s,r)=>s+r.net,0);
+  document.getElementById('de_stats').textContent=`${DE_ROWS.length} rows | ₹${inr0(total)} | ${new Set(DE_ROWS.map(r=>r.billKey)).size} bills | ${new Set(DE_ROWS.map(r=>r.vendor)).size} vendors`;
+  deUpdateSelCount();
+  const tbody=document.getElementById('de_tbody');
+  if(!DE_ROWS.length){tbody.innerHTML=`<tr><td colspan="14" class="empty">Koi data nahi — filters badlo</td></tr>`;return}
+  tbody.innerHTML=DE_ROWS.map(r=>`<tr id="derow_${r.id}" class="${r.audit==='ERROR'?'prev-err':r.audit==='WARNING'?'prev-warn':''}">
+    <td class="c"><input type="checkbox" class="de-chk" value="${r.id}" ${DE_SELECTED.has(r.id)?'checked':''} onchange="deToggleRow('${r.id}',this.checked)"></td>
+    <td style="font-size:12px">${fmtD(r.purchaseDate)}</td>
+    <td style="font-size:12px;max-width:120px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis" title="${esc(r.vendor)}">${esc(r.vendor)}</td>
+    <td style="font-size:12px">${esc(r.invoiceNo)}</td>
+    <td style="font-size:12px;max-width:150px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis" title="${esc(r.item)}">${esc(r.item)}</td>
+    <td><input class="de-inline" data-id="${r.id}" data-field="group" value="${esc(r.group)}" list="dl_de_mg" style="width:130px;font-size:11px;padding:3px 6px" onchange="deInlineChange(this)"></td>
+    <td><input class="de-inline" data-id="${r.id}" data-field="category" value="${esc(r.category)}" list="dl_de_mc" style="width:130px;font-size:11px;padding:3px 6px" onchange="deInlineChange(this)"></td>
+    <td><input class="de-inline" data-id="${r.id}" data-field="department" value="${esc(r.department)}" list="dl_de_md" style="width:130px;font-size:11px;padding:3px 6px" onchange="deInlineChange(this)"></td>
+    <td class="r" style="font-size:12px">${r.qty}</td>
+    <td class="r" style="font-size:12px">${inr(r.rate)}</td>
+    <td class="r" style="font-size:12px"><strong>${inr0(r.net)}</strong></td>
+    <td><select class="de-inline" data-id="${r.id}" data-field="paymentStatus" style="font-size:11px;padding:3px 5px;width:110px" onchange="deInlineChange(this)">
+      <option ${r.paymentStatus==='Pending'?'selected':''}>Pending</option>
+      <option ${r.paymentStatus==='Paid'?'selected':''}>Paid</option>
+      <option ${r.paymentStatus==='Partially Paid'?'selected':''}>Partially Paid</option>
+    </select></td>
+    <td><span class="pill ${r.audit==='OK'?'pill-ok':r.audit==='WARNING'?'pill-warn':'pill-err'}" style="font-size:10px">${r.audit}</span></td>
+    <td class="c"><button class="btn btn-ghost btn-xs" onclick="deOpenModal('${r.id}')">Full Edit</button></td>
+  </tr>`).join('');
+}
+
+function deInlineChange(el){
+  const id=el.getAttribute('data-id');
+  const field=el.getAttribute('data-field');
+  const val=el.value;
+  const entry=DATA.find(d=>d.id===id);
+  if(entry){
+    entry[field]=val;
+    // highlight changed row
+    const row=document.getElementById('derow_'+id);
+    if(row)row.style.background='#fffde8';
+  }
+}
+
+function deToggleRow(id,checked){
+  if(checked)DE_SELECTED.add(id);else DE_SELECTED.delete(id);
+  deUpdateSelCount();
+}
+function deToggleAll(checked){
+  DE_ROWS.forEach(r=>{if(checked)DE_SELECTED.add(r.id);else DE_SELECTED.delete(r.id)});
+  document.querySelectorAll('.de-chk').forEach(c=>c.checked=checked);
+  deUpdateSelCount();
+}
+function deSelectAll(){document.getElementById('de_checkall').checked=true;deToggleAll(true)}
+function deSelectNone(){document.getElementById('de_checkall').checked=false;deToggleAll(false)}
+function deUpdateSelCount(){
+  const n=DE_SELECTED.size;
+  document.getElementById('de_selcount').textContent=`${n} selected`;
+  document.getElementById('de_bulkbtn').disabled=n===0;
+}
+
+function deBulkEdit(){
+  if(DE_SELECTED.size===0){toast('Pehle rows select karo',true);return}
+  document.getElementById('de_bulkPanel').classList.remove('hide');
+  document.getElementById('bulk_dept').value='';
+  document.getElementById('bulk_grp').value='';
+  document.getElementById('bulk_cat').value='';
+  document.getElementById('bulk_stat').value='';
+  document.getElementById('bulk_invtype').value='';
+  document.getElementById('bulk_audit').value='';
+  document.getElementById('de_bulkPanel').scrollIntoView({behavior:'smooth'});
+}
+function deBulkClear(){
+  ['bulk_dept','bulk_grp','bulk_cat'].forEach(id=>document.getElementById(id).value='');
+  ['bulk_stat','bulk_invtype','bulk_audit'].forEach(id=>document.getElementById(id).value='');
+}
+function doBulkApply(){
+  const dept=document.getElementById('bulk_dept').value.trim();
+  const grp=document.getElementById('bulk_grp').value.trim();
+  const cat=document.getElementById('bulk_cat').value.trim();
+  const stat=document.getElementById('bulk_stat').value;
+  const invtype=document.getElementById('bulk_invtype').value;
+  const audit=document.getElementById('bulk_audit').value;
+  if(!dept&&!grp&&!cat&&!stat&&!invtype&&!audit){toast('Koi field nahi bhara',true);return}
+  let count=0;
+  DATA.forEach(entry=>{
+    if(!DE_SELECTED.has(entry.id))return;
+    if(dept)entry.department=dept;
+    if(grp)entry.group=grp;
+    if(cat)entry.category=cat;
+    if(stat)entry.paymentStatus=stat;
+    if(invtype)entry.invoiceType=invtype;
+    if(audit)entry.audit=audit;
+    count++;
+  });
+  document.getElementById('de_bulkPanel').classList.add('hide');
+  renderDataEditor();
+  toast(`✓ ${count} entries updated — Save All karo`);
+}
+
+function deSaveAll(){
+  persist();
+  if(window._fbReady){
+    const toSync=DE_ROWS.length>0?DATA:DATA; // sync all
+    window._fb.saveMany(DATA).then(ok=>{
+      toast(ok?`✓ ${DATA.length} entries saved & synced to cloud`:'Saved locally (cloud sync failed)',!ok);
+      renderDataEditor();
+    });
+  } else {
+    toast('✓ Saved locally');
+    renderDataEditor();
+  }
+}
+
+// INLINE EDIT MODAL
+function deOpenModal(id){
+  const e=DATA.find(d=>d.id===id);if(!e)return;
+  DE_EDIT_ID=id;
+  document.getElementById('de_modalTitle').textContent=`Edit: ${e.item} (${e.vendor})`;
+  document.getElementById('de_e_date').value=e.purchaseDate||'';
+  document.getElementById('de_e_vend').value=e.vendor||'';
+  document.getElementById('de_e_inv').value=e.invoiceNo||'';
+  document.getElementById('de_e_grn').value=e.grn||'';
+  document.getElementById('de_e_dept').value=e.department||'';
+  document.getElementById('de_e_invtype').value=e.invoiceType||'GST';
+  document.getElementById('de_e_grp').value=e.group||'';
+  document.getElementById('de_e_cat').value=e.category||'';
+  document.getElementById('de_e_item').value=e.item||'';
+  document.getElementById('de_e_unit').value=e.unit||'';
+  document.getElementById('de_e_qty').value=e.qty||'';
+  document.getElementById('de_e_rate').value=e.rate||'';
+  document.getElementById('de_e_gstp').value=e.gstPct||'';
+  document.getElementById('de_e_tax').value=(e.taxable||0).toFixed(2);
+  document.getElementById('de_e_gsta').value=(e.gstAmt||0).toFixed(2);
+  document.getElementById('de_e_net').value=(e.net||0).toFixed(2);
+  document.getElementById('de_e_stat').value=e.paymentStatus||'Pending';
+  document.getElementById('de_e_due').value=e.paymentDue||'';
+  document.getElementById('de_e_audit').value=e.audit||'OK';
+  document.getElementById('de_e_notes').value=e.notes||'';
+  document.getElementById('de_editModal').classList.remove('hide');
+}
+function deCloseModal(){document.getElementById('de_editModal').classList.add('hide');DE_EDIT_ID=null}
+function deCalcModal(){
+  const qty=+document.getElementById('de_e_qty').value||0;
+  const rate=+document.getElementById('de_e_rate').value||0;
+  const gstp=+document.getElementById('de_e_gstp').value||0;
+  const tax=R2(qty*rate);
+  const gsta=R2(tax*gstp/100);
+  const net=R2(tax+gsta);
+  document.getElementById('de_e_tax').value=tax.toFixed(2);
+  document.getElementById('de_e_gsta').value=gsta.toFixed(2);
+  document.getElementById('de_e_net').value=net.toFixed(2);
+}
+function deSaveModal(){
+  if(!DE_EDIT_ID)return;
+  const e=DATA.find(d=>d.id===DE_EDIT_ID);if(!e)return;
+  e.purchaseDate=document.getElementById('de_e_date').value;
+  e.vendor=document.getElementById('de_e_vend').value.trim();
+  e.invoiceNo=document.getElementById('de_e_inv').value.trim();
+  e.grn=document.getElementById('de_e_grn').value.trim();
+  e.department=document.getElementById('de_e_dept').value.trim();
+  e.invoiceType=document.getElementById('de_e_invtype').value;
+  e.group=document.getElementById('de_e_grp').value.trim();
+  e.category=document.getElementById('de_e_cat').value.trim();
+  e.item=document.getElementById('de_e_item').value.trim();
+  e.unit=document.getElementById('de_e_unit').value.trim();
+  e.qty=+document.getElementById('de_e_qty').value||0;
+  e.rate=+document.getElementById('de_e_rate').value||0;
+  e.gstPct=+document.getElementById('de_e_gstp').value||0;
+  e.taxable=+document.getElementById('de_e_tax').value||0;
+  e.gstAmt=+document.getElementById('de_e_gsta').value||0;
+  e.net=+document.getElementById('de_e_net').value||0;
+  e.paymentStatus=document.getElementById('de_e_stat').value;
+  e.paymentDue=document.getElementById('de_e_due').value;
+  e.audit=document.getElementById('de_e_audit').value;
+  e.notes=document.getElementById('de_e_notes').value.trim();
+  e.billKey=`${e.vendor}|${e.invoiceNo}|${e.purchaseDate}`;
+  persist();
+  if(window._fbReady)window._fb.saveEntry(e).then(ok=>toast(ok?'✓ Entry saved & synced':'Saved locally',!ok));
+  else toast('✓ Entry saved');
+  deCloseModal();
+  renderDataEditor();
+  refreshLists();
+}
+function deDeleteModal(){
+  if(!DE_EDIT_ID)return;
+  const e=DATA.find(d=>d.id===DE_EDIT_ID);
+  if(!confirm(`Delete: "${e?.item}"? Ye undo nahi hoga.`))return;
+  DATA=DATA.filter(d=>d.id!==DE_EDIT_ID);
+  persist();
+  if(window._fbReady)window._fb.deleteEntry(DE_EDIT_ID);
+  toast('Entry deleted');
+  deCloseModal();
+  renderDataEditor();
+  refreshLists();
+}
 
 // ========================================================
 // INIT
