@@ -63,6 +63,18 @@
     }
   };
 
+    async saveToCol(col,id,data){
+      try{ await setDoc(doc(db,col,id), data); return true; }
+      catch(e){ console.error('FB saveToCol:', e); return false; }
+    },
+    async loadCol(col){
+      try{ const snap=await getDocs(collection(db,col)); return snap.docs.map(d=>d.data()); }
+      catch(e){ console.error('FB loadCol:', e); return null; }
+    },
+    async deleteFromCol(col,id){
+      try{ await deleteDoc(doc(db,col,id)); return true; }
+      catch(e){ console.error('FB deleteFromCol:', e); return false; }
+    },
   // Auto-load from Firebase on startup
   window._fbReady = true;
   window.dispatchEvent(new Event('fbReady'));
@@ -247,6 +259,7 @@ tfoot td{font-weight:800;background:#f0f5f3;border-top:2px solid var(--teal);fon
   <button onclick="showTab('monthly')" id="nb-monthly">📆 Monthly MIS</button>
   <button onclick="showTab('audit')" id="nb-audit">🔒 Audit</button>
   <button onclick="showTab('products')" id="nb-products">📦 Products</button>
+  <button onclick="showTab('store')" id="nb-store">🏬 Store</button>
   <button onclick="showTab('dataeditor')" id="nb-dataeditor" class="pm-only">✏ Data Editor</button>
   <button onclick="showTab('exportcenter')" id="nb-exportcenter" class="pm-only">⬇ Export</button>
   <button onclick="showTab('settings')" id="nb-settings" class="pm-only">⚙ Settings</button>
@@ -800,6 +813,157 @@ tfoot td{font-weight:800;background:#f0f5f3;border-top:2px solid var(--teal);fon
   </div>
 </div>
 
+
+<!-- ======= STORE (stock issue / receipt) ======= -->
+<div id="tab-store" class="hide">
+  <div class="nav" id="storeNav" style="top:0">
+    <button onclick="showStoreTab('dash')" id="ns-dash">🏠 Store Home</button>
+    <button onclick="showStoreTab('issue')" id="ns-issue" class="pm-only">📤 Issue</button>
+    <button onclick="showStoreTab('receipt')" id="ns-receipt" class="pm-only">📥 Receipt</button>
+    <button onclick="showStoreTab('stock')" id="ns-stock">📦 Stock</button>
+    <button onclick="showStoreTab('datewise')" id="ns-datewise">📅 Date-wise</button>
+    <button onclick="showStoreTab('items')" id="ns-items">🗂 Items</button>
+    <button onclick="showStoreTab('slip')" id="ns-slip">🧾 Slip</button>
+  </div>
+
+  <div id="st-dash">
+    <div class="grid g3" id="storeKpis" style="margin-bottom:12px"></div>
+    <div class="card" id="sb_multicard" style="margin-bottom:12px"><div class="card-body" style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+      <div style="flex:1;min-width:200px"><b>📋 Multi Issue</b><br><span style="font-size:13px;color:var(--ink3)">Kai items ek saath select karo — phir ek date par sabka qty daal ke issue karo</span></div>
+      <button class="btn btn-primary" onclick="sOpenMulti()">📋 Items Chunno</button>
+    </div></div>
+    <div class="card pm-only" id="sb_reqcard" style="margin-bottom:12px">
+      <div class="card-head"><h2>📝 Mangwana List — kya aur kitna order karna hai</h2></div>
+      <div class="card-body">
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
+          <div style="position:relative;flex:1;min-width:180px">
+            <input id="rq_q" placeholder="🔍 item dhoondho, + Add dabao" autocomplete="off" oninput="sReqSuggest()">
+            <div id="rq_sugg" class="sugg hide"></div>
+          </div>
+          <select id="rq_cat" onchange="sReqSuggest()" style="max-width:170px"></select>
+          <button class="btn btn-sm" onclick="sReqLow()">⚠ Low-stock add karo</button>
+        </div>
+        <div id="rq_list" style="border:1px solid var(--line);border-radius:10px;max-height:300px;overflow:auto"></div>
+        <div style="display:flex;gap:10px;align-items:end;margin-top:10px;flex-wrap:wrap">
+          <div><label class="lbl">Date</label><input type="date" id="rq_date" style="max-width:170px"></div>
+          <button class="btn btn-primary" id="rq_savebtn" onclick="sReqSave()">💾 List Save Karo</button>
+          <span style="font-size:12px;color:var(--ink3)">Qty me <b>Enter</b> dabao → agle item par</span>
+        </div>
+        <div style="margin-top:12px"><b style="font-size:13px">Saved lists</b><div id="rq_saved"></div></div>
+      </div></div>
+    <div id="reqPrint" style="display:none"></div>
+    <div class="grid g2">
+      <div class="card"><div class="card-head"><h2>⚠ Low / Out of Stock</h2></div>
+        <div class="card-body"><div id="storeLowList"></div></div></div>
+      <div class="card"><div class="card-head"><h2>⏳ Expiry Alerts (30 din)</h2></div>
+        <div class="card-body"><div id="storeExpList"></div></div></div>
+    </div>
+  </div>
+
+  <div id="st-multi" class="hide">
+    <div class="card"><div class="card-head"><h2>📋 Items chunno — Multi Issue</h2>
+      <select id="mu_cat" onchange="sRenderMulti()" style="max-width:190px"></select>
+      <input id="mu_q" placeholder="🔍 item dhoondho..." oninput="sRenderMulti()" style="max-width:220px"></div>
+      <div class="card-body">
+        <div style="margin-bottom:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <button class="btn btn-sm" onclick="sMultiAll(true)">☑ Sab select</button>
+          <button class="btn btn-sm" onclick="sMultiAll(false)">☐ Saaf karo</button>
+          <span id="mu_count" style="color:var(--ink3);font-size:13px"></span>
+        </div>
+        <div id="mu_list" style="max-height:52vh;overflow:auto;border:1px solid var(--line);border-radius:10px"></div>
+      </div></div>
+    <div style="position:sticky;bottom:0;padding:10px 4px;background:var(--bg);display:flex;gap:10px;align-items:center">
+      <span id="mu_selcount" style="font-weight:700"></span>
+      <button class="btn btn-primary btn-lg" style="flex:1" onclick="sMultiOk()">OK → Issue karo</button>
+    </div>
+  </div>
+
+  <div id="st-issue" class="hide">
+    <div class="card" id="si_formcard"><div class="card-head"><h2>📤 Stock Issue</h2></div>
+      <div class="card-body">
+        <div class="grid g4">
+          <div><label class="lbl">Date *</label><input type="date" id="si_date"></div>
+          <div style="position:relative;grid-column:span 2"><label class="lbl">Item * (2-3 akshar likho)</label>
+            <input id="si_item" placeholder="jaise: poh" autocomplete="off" oninput="sSuggest('si_item','si_sugg','si_code')">
+            <div id="si_sugg" class="sugg hide"></div>
+            <input type="hidden" id="si_code"></div>
+          <div><label class="lbl">Qty *</label><input type="number" id="si_qty" min="1" placeholder="0"></div>
+          <div><label class="lbl">Issued To / Dept</label>
+            <select id="si_dept"><option>Kitchen</option><option>FnB Service</option><option>Housekeeping</option><option>Front Office</option><option>Maintenance</option><option>Security</option><option>Other</option></select></div>
+          <div style="grid-column:span 3;align-self:end"><button class="btn btn-primary" onclick="sSaveIssue()">✅ Issue Save Karo</button></div>
+        </div>
+      </div></div>
+    <div class="card"><div class="card-head"><h2>🕘 Aaj ke Issues</h2></div>
+      <div class="card-body"><div class="table-scroll"><table id="storeIssueTable"></table></div></div></div>
+  </div>
+
+  <div id="st-receipt" class="hide">
+    <div class="card"><div class="card-head"><h2>📥 Stock Receipt (naya maal aaya)</h2></div>
+      <div class="card-body">
+        <div class="grid g4">
+          <div><label class="lbl">Date *</label><input type="date" id="sr_date"></div>
+          <div style="position:relative;grid-column:span 2"><label class="lbl">Item * (2-3 akshar likho)</label>
+            <input id="sr_item" placeholder="jaise: oil" autocomplete="off" oninput="sSuggest('sr_item','sr_sugg','sr_code')">
+            <div id="sr_sugg" class="sugg hide"></div>
+            <input type="hidden" id="sr_code"></div>
+          <div><label class="lbl">Qty *</label><input type="number" id="sr_qty" min="1" placeholder="0"></div>
+          <div><label class="lbl">Supplier</label><input id="sr_sup"></div>
+          <div><label class="lbl">GRN / Bill No</label><input id="sr_grn"></div>
+          <div style="grid-column:span 2;align-self:end"><button class="btn btn-primary" onclick="sSaveReceipt()">✅ Receipt Save Karo</button></div>
+        </div>
+      </div></div>
+    <div class="card"><div class="card-head"><h2>🕘 Recent Receipts</h2></div>
+      <div class="card-body"><div class="table-scroll"><table id="storeReceiptTable"></table></div></div></div>
+  </div>
+
+  <div id="st-stock" class="hide">
+    <div class="card"><div class="card-head"><h2>📦 Current Stock</h2>
+      <select id="ss_cat" onchange="sRenderStock()" style="max-width:190px"></select>
+      <input id="ss_filter" placeholder="🔍 item dhoondho..." oninput="sRenderStock()" style="max-width:220px"></div>
+      <div class="card-body"><div class="table-scroll"><table id="storeStockTable"></table></div></div></div>
+  </div>
+
+  <div id="st-datewise" class="hide">
+    <div class="card"><div class="card-head"><h2>📅 Date-wise Issue (pichhle 30 din)</h2></div>
+      <div class="card-body"><div class="table-scroll"><table id="storeDateTable"></table></div></div></div>
+  </div>
+
+  <div id="st-items" class="hide">
+    <div class="card" id="sb_bulkcard"><div class="card-head"><h2>➕ Bulk Add — ek saath kai items</h2></div>
+      <div class="card-body">
+        <div class="grid g3">
+          <div><label class="lbl">Category *</label><select id="sb_cat" onchange="document.getElementById('sb_prefix').value=sCatPrefix(this.value)"></select></div>
+          <div><label class="lbl">Code Prefix</label><input id="sb_prefix" placeholder="jaise: HK"></div>
+          <div style="align-self:end"><button class="btn btn-primary" onclick="sBulkAdd()">➕ Add Items</button></div>
+        </div>
+        <div style="margin-top:10px"><label class="lbl">Items — ek line me ek item</label>
+        <textarea id="sb_text" rows="5" style="width:100%;font:inherit" placeholder="Vim Bar | Pcs&#10;Surf Excel 1kg | Pkt | 5&#10;(Format: Item Name | UOM | Reorder | Opening)"></textarea></div>
+        <div style="font-size:12px;color:var(--ink3);margin-top:6px">Sirf naam likhna zaroori hai — UOM, Reorder, Opening optional hain (| se alag karke likho).</div>
+      </div></div>
+    <div class="card" id="sb_catcard"><div class="card-head"><h2>🏷 Categories</h2></div>
+      <div class="card-body"><div id="sb_catlist" style="margin-bottom:10px"></div>
+        <div class="grid g3"><div style="grid-column:span 2"><input id="sb_newcat" placeholder="Nayi category — jaise: Bakery"></div>
+        <div><button class="btn" onclick="sAddCat()">＋ Add</button></div></div>
+      </div></div>
+    <div class="card"><div class="card-head"><h2>🗂 Item Master (<span id="sm_count"></span>)</h2>
+      <select id="sm_cat" onchange="sRenderItems()" style="max-width:190px"></select>
+      <input id="sm_filter" placeholder="🔍 item dhoondho..." oninput="sRenderItems()" style="max-width:220px"></div>
+      <div class="card-body"><div class="table-scroll"><table id="storeItemsTable"></table></div></div></div>
+  </div>
+
+  <div id="st-slip" class="hide">
+    <div class="card"><div class="card-head"><h2>🧾 Daily Issue Summary</h2>
+      <input type="date" id="sl_date" onchange="sRenderSlip()" style="max-width:170px">
+      <button class="btn btn-primary btn-sm" onclick="sPrintSlip()">🖨 Print / PDF</button></div>
+      <div class="card-body">
+        <div id="sl_meta" style="color:var(--ink3);font-size:13px;margin-bottom:8px"></div>
+        <div class="table-scroll"><table id="slipView"></table></div>
+        <div style="font-size:12px;color:var(--ink3);margin-top:8px">Print dabao → PDF save ya printer par nikaalo. Sign karke file me rakho.</div>
+      </div></div>
+  </div>
+  <div id="slipPrint" style="display:none"></div>
+</div>
+
 </main>
 </div>
 
@@ -980,7 +1144,7 @@ function showTab(n){
   if(n==='daily')renderDaily();
   if(n==='monthly')renderMonthly();
   if(n==='audit')renderAudit();
-  if(n==='products')renderProducts();
+  if(n==='products')renderProducts();if(n==='store'){if(currentRole==='gm'&&(S_TAB==='issue'||S_TAB==='receipt'))S_TAB='dash';if(!S_SYNCED){S_SYNCED=true;storePullCloud();}renderStore();}
   if(n==='settings'){renderVendorProfiles();document.getElementById('totalEntries').textContent=DATA.length;document.getElementById('set_prop').value=SETS.prop;document.getElementById('set_tol').value=SETS.tol}
   if(n==='dataeditor'){renderDataEditor()}
 }
@@ -2099,5 +2263,418 @@ function deDeleteModal(){
 document.getElementById('loginPin').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin()});
 document.getElementById('dropZone').addEventListener('dragover',e=>e.preventDefault());
 </script>
+
+<style>
+.sugg{position:absolute;left:0;right:0;top:100%;background:#fff;border:1px solid var(--line);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.14);z-index:500;max-height:240px;overflow-y:auto}
+.sugg-it{padding:8px 12px;cursor:pointer;border-bottom:1px solid #f0f0f0;font-size:13px}
+.sugg-it:last-child{border-bottom:0}
+.sugg-it:hover{background:#f0f7f5}
+.sugg-it span{display:block;font-size:11px;color:var(--ink3)}
+.table-scroll{overflow-x:auto}
+.st-out{background:#fdecea;color:#b3261e;font-weight:800;padding:2px 10px;border-radius:20px;font-size:11px;white-space:nowrap}
+.st-low{background:#fff4e0;color:#a86a00;font-weight:800;padding:2px 10px;border-radius:20px;font-size:11px;white-space:nowrap}
+.st-ok{background:#e6f4ec;color:#1c7a3d;font-weight:800;padding:2px 10px;border-radius:20px;font-size:11px;white-space:nowrap}
+.srow{display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid #f0f0f0;font-size:13px}
+.srow:last-child{border-bottom:0}
+.smini{width:76px;padding:4px 6px;font-size:12px}
+@media(max-width:640px){.grid.g4{grid-template-columns:1fr 1fr}}
+#slipPrint,#reqPrint{display:none}
+@media print{
+  body *{visibility:hidden !important;}
+  #slipPrint,#slipPrint *,#reqPrint,#reqPrint *{visibility:visible !important;}
+  #slipPrint,#reqPrint{display:block !important;position:absolute;left:0;top:0;width:100%;padding:8px;}
+}
+</style>
+
+
+<script>
+/* ================= STORE MODULE (stock issue / receipt) ================= */
+const STORE_ITEMS_KEY='ginger_store_items_v1';
+const STORE_ISSUES_KEY='ginger_store_issues_v1';
+const STORE_RECEIPTS_KEY='ginger_store_receipts_v1';
+const STORE_SEED=[{"code": "KS-001", "name": "Poha", "opening": 5, "uom": "", "reorder": "", "expiry": "2026-11-30", "loc": "Store", "cat": "Kitchen Store"}, {"code": "KS-002", "name": "Vermicelli", "opening": 7, "uom": "", "reorder": "", "expiry": "2028-06-13", "loc": "Store", "cat": "Kitchen Store"}, {"code": "KS-003", "name": "Bread Crumb", "opening": 2, "uom": "", "reorder": "", "expiry": "2027-01-29", "loc": "Store", "cat": "Kitchen Store"}, {"code": "KS-004", "name": "Sabudana", "opening": 12, "uom": "", "reorder": "", "expiry": "2028-03-03", "loc": "Store", "cat": "Kitchen Store"}, {"code": "KS-005", "name": "Samak", "opening": 1, "uom": "", "reorder": "", "expiry": "2026-11-02", "loc": "Store", "cat": "Kitchen Store"}, {"code": "KS-006", "name": "White oats", "opening": 3, "uom": "", "reorder": "", "expiry": "2027-04-15", "loc": "Store", "cat": "Kitchen Store"}, {"code": "KS-007", "name": "Penne", "opening": 4, "uom": "", "reorder": "", "expiry": "2028-03-13", "loc": "Store", "cat": "Kitchen Store"}, {"code": "KS-008", "name": "Fusilli", "opening": 3, "uom": "", "reorder": "", "expiry": "2027-10-01", "loc": "Store", "cat": "Kitchen Store"}, {"code": "KS-009", "name": "Macaroni", "opening": 6, "uom": "", "reorder": "", "expiry": "2027-10-01", "loc": "Store", "cat": "Kitchen Store"}, {"code": "KS-010", "name": "Corriander powder", "opening": 2, "uom": "", "reorder": "", "expiry": "2027-03-28", "loc": "Store", "cat": "Kitchen Store"}, {"code": "KS-011", "name": "Mirch Powder", "opening": 3, "uom": "", "reorder": "", "expiry": "2027-02-02", "loc": "Store", "cat": "Kitchen Store"}, {"code": "KS-012", "name": "Turmeric Powder", "opening": 3, "uom": "", "reorder": "", "expiry": "2027-01-03", "loc": "Store", "cat": "Kitchen Store"}, {"code": "KS-013", "name": "Noodles", "opening": 68, "uom": "", "reorder": "", "expiry": "2027-03-01", "loc": "Store", "cat": "Kitchen Store"}, {"code": "KS-014", "name": "Deggi Mirch", "opening": 25, "uom": "", "reorder": "", "expiry": "2027-04-01", "loc": "Store", "cat": "Kitchen Store"}, {"code": "KS-015", "name": "Chunky chat masala", "opening": 18, "uom": "", "reorder": "", "expiry": "2027-04-01", "loc": "Store", "cat": "Kitchen Store"}, {"code": "KS-016", "name": "Garam Masala", "opening": 6, "uom": "", "reorder": "", "expiry": "2027-04-01", "loc": "Store", "cat": "Kitchen Store"}, {"code": "KS-017", "name": "Kitchen King", "opening": 22, "uom": "", "reorder": "", "expiry": "2027-04-01", "loc": "Store", "cat": "Kitchen Store"}, {"code": "KS-018", "name": "Chana masala", "opening": 10, "uom": "", "reorder": "", "expiry": "2026-12-01", "loc": "Store", "cat": "Kitchen Store"}, {"code": "KS-019", "name": "Pav bhaji masala", "opening": 3, "uom": "", "reorder": "", "expiry": "2027-03-01", "loc": "Store", "cat": "Kitchen Store"}, {"code": "KS-020", "name": "Sambhar masala", "opening": 9, "uom": "", "reorder": "", "expiry": "2027-03-01", "loc": "Store", "cat": "Kitchen Store"}, {"code": "KS-021", "name": "White pepper", "opening": 4, "uom": "", "reorder": "", "expiry": "2026-11-01", "loc": "Store", "cat": "Kitchen Store"}, {"code": "KS-022", "name": "Papad", "opening": 5, "uom": "", "reorder": "", "expiry": "2026-10-21", "loc": "Store", "cat": "Kitchen Store"}, {"code": "KS-023", "name": "Whole corriander", "opening": 2, "uom": "", "reorder": "", "expiry": "2027-02-19", "loc": "Store", "cat": "Kitchen Store"}, {"code": "KS-024", "name": "Soya", "opening": 1, "uom": "", "reorder": "", "expiry": "2027-01-01", "loc": "Store", "cat": "Kitchen Store"}, {"code": "KS-025", "name": "Toor dal", "opening": 8, "uom": "", "reorder": "", "expiry": "2027-01-01", "loc": "Store", "cat": "Kitchen Store"}, {"code": "KS-026", "name": "Masoor dal", "opening": 2, "uom": "", "reorder": "", "expiry": "2027-01-01", "loc": "Store", "cat": "Kitchen Store"}, {"code": "KS-027", "name": "Moong chilka", "opening": 8, "uom": "", "reorder": "", "expiry": "2026-12-01", "loc": "Store", "cat": "Kitchen Store"}, {"code": "KS-028", "name": "Black Urad", "opening": 2, "uom": "", "reorder": "", "expiry": "2027-01-01", "loc": "Store", "cat": "Kitchen Store"}, {"code": "KS-029", "name": "URAD Mogar dal", "opening": 6, "uom": "", "reorder": "", "expiry": "2026-11-01", "loc": "Store", "cat": "Kitchen Store"}, {"code": "KS-030", "name": "Daal Chana", "opening": 4, "uom": "", "reorder": "", "expiry": "2027-01-01", "loc": "Store", "cat": "Kitchen Store"}, {"code": "KS-031", "name": "Black pepper whole", "opening": 0.25, "uom": "", "reorder": "", "expiry": "2027-01-01", "loc": "Store", "cat": "Kitchen Store"}, {"code": "KS-032", "name": "Raisan", "opening": 0, "uom": "", "reorder": "", "expiry": "2027-01-01", "loc": "Store", "cat": "Kitchen Store"}, {"code": "KS-033", "name": "Moong mogar dal", "opening": 0, "uom": "", "reorder": "", "expiry": "2027-01-01", "loc": "Store", "cat": "Kitchen Store"}, {"code": "KS-034", "name": "Kaju tukdi", "opening": 7, "uom": "", "reorder": "", "expiry": "2027-01-01", "loc": "Store", "cat": "Kitchen Store"}, {"code": "KS-035", "name": "MAGAJ", "opening": 1, "uom": "", "reorder": "", "expiry": "", "loc": "", "cat": "Kitchen Store"}, {"code": "KS-036", "name": "Besan", "opening": 1, "uom": "", "reorder": "", "expiry": "2026-11-16", "loc": "Store", "cat": "Kitchen Store"}, {"code": "KS-037", "name": "Suji", "opening": 0, "uom": "", "reorder": "", "expiry": "", "loc": "Store", "cat": "Kitchen Store"}, {"code": "KS-038", "name": "Corn Starch", "opening": 4, "uom": "", "reorder": "", "expiry": "2028-02-02", "loc": "Store", "cat": "Kitchen Store"}, {"code": "KS-039", "name": "Imli", "opening": 0, "uom": "", "reorder": "", "expiry": "2027-01-01", "loc": "Store", "cat": "Kitchen Store"}, {"code": "KS-040", "name": "Dana methi", "opening": 1, "uom": "", "reorder": "", "expiry": "", "loc": "Store", "cat": "Kitchen Store"}, {"code": "KS-041", "name": "Mustard Seeds", "opening": 0.5, "uom": "", "reorder": "", "expiry": "2027-02-17", "loc": "Store", "cat": "Kitchen Store"}, {"code": "KS-042", "name": "Fenugreek", "opening": 1, "uom": "", "reorder": "", "expiry": "2027-03-17", "loc": "Store", "cat": "Kitchen Store"}, {"code": "KS-043", "name": "White till", "opening": 0, "uom": "", "reorder": "", "expiry": "2027-01-01", "loc": "Store", "cat": "Kitchen Store"}, {"code": "KS-044", "name": "Kalonji", "opening": 0, "uom": "", "reorder": "", "expiry": "2027-05-17", "loc": "Store", "cat": "Kitchen Store"}, {"code": "KS-045", "name": "Fresh cream", "opening": 8, "uom": "", "reorder": "", "expiry": "2026-11-12", "loc": "Store", "cat": "Kitchen Store"}, {"code": "KS-046", "name": "Ghee", "opening": 1, "uom": "", "reorder": "", "expiry": "2027-05-06", "loc": "Store", "cat": "Kitchen Store"}, {"code": "KS-047", "name": "Eno", "opening": 4, "uom": "", "reorder": "", "expiry": "2027-12-01", "loc": "Store", "cat": "Kitchen Store"}, {"code": "KS-048", "name": "Hing", "opening": 4, "uom": "", "reorder": "", "expiry": "2027-11-06", "loc": "Store", "cat": "Kitchen Store"}, {"code": "KS-049", "name": "Tahina", "opening": 0, "uom": "", "reorder": "", "expiry": "2028-05-04", "loc": "Store", "cat": "Kitchen Store"}, {"code": "KS-050", "name": "Tej Patta", "opening": 1, "uom": "", "reorder": "", "expiry": "2026-12-19", "loc": "Store", "cat": "Kitchen Store"}, {"code": "KS-051", "name": "Star Anised", "opening": 0.25, "uom": "", "reorder": "", "expiry": "2027-01-01", "loc": "Store", "cat": "Kitchen Store"}, {"code": "KS-052", "name": "Elaichi", "opening": 0, "uom": "", "reorder": "", "expiry": "2027-01-01", "loc": "Store", "cat": "Kitchen Store"}, {"code": "KS-053", "name": "Boondi", "opening": 5, "uom": "", "reorder": "", "expiry": "2026-12-01", "loc": "Store", "cat": "Kitchen Store"}, {"code": "KS-054", "name": "Mangodi dal", "opening": 2.4, "uom": "", "reorder": "", "expiry": "2027-01-01", "loc": "Store", "cat": "Kitchen Store"}, {"code": "KS-055", "name": "Custard powder", "opening": 2, "uom": "", "reorder": "", "expiry": "2028-03-01", "loc": "Store", "cat": "Kitchen Store"}, {"code": "KS-056", "name": "Jeera", "opening": 3, "uom": "", "reorder": "", "expiry": "2027-01-01", "loc": "Store", "cat": "Kitchen Store"}, {"code": "KS-057", "name": "Coffee", "opening": 3, "uom": "", "reorder": "", "expiry": "2027-03-01", "loc": "Store", "cat": "Kitchen Store"}, {"code": "KS-058", "name": "Tea", "opening": 7, "uom": "", "reorder": "", "expiry": "2027-05-01", "loc": "Store", "cat": "Kitchen Store"}, {"code": "KS-059", "name": "Mayonnaise", "opening": 2, "uom": "", "reorder": "", "expiry": "2027-04-01", "loc": "Store", "cat": "Kitchen Store"}, {"code": "KS-060", "name": "Glucon-D", "opening": 1, "uom": "", "reorder": "", "expiry": "2027-07-29", "loc": "Store", "cat": "Kitchen Store"}, {"code": "KS-061", "name": "Rasna", "opening": 1, "uom": "", "reorder": "", "expiry": "2027-03-01", "loc": "Store", "cat": "Kitchen Store"}, {"code": "KS-062", "name": "Green Chilli Sauce", "opening": 1, "uom": "", "reorder": "", "expiry": "2027-12-07", "loc": "Store", "cat": "Kitchen Store"}, {"code": "KS-063", "name": "Red Chilli sauce", "opening": 2, "uom": "", "reorder": "", "expiry": "2027-12-11", "loc": "Store", "cat": "Kitchen Store"}, {"code": "KS-064", "name": "Vinegar", "opening": 2, "uom": "", "reorder": "", "expiry": "2027-06-23", "loc": "Store", "cat": "Kitchen Store"}, {"code": "KS-065", "name": "Dark soy sauce", "opening": 1, "uom": "", "reorder": "", "expiry": "2027-10-11", "loc": "Store", "cat": "Kitchen Store"}, {"code": "KS-066", "name": "Bikaneri Bhujia", "opening": 3, "uom": "", "reorder": "", "expiry": "2027-01-09", "loc": "Store", "cat": "Kitchen Store"}, {"code": "KS-067", "name": "Long sev", "opening": 7, "uom": "", "reorder": "", "expiry": "2026-12-23", "loc": "Store", "cat": "Kitchen Store"}, {"code": "KS-068", "name": "Ketchup  sachet", "opening": 25, "uom": "", "reorder": "", "expiry": "2026-12-05", "loc": "Store", "cat": "Kitchen Store"}, {"code": "KS-069", "name": "Coffee sachet", "opening": 3, "uom": "", "reorder": "", "expiry": "2027-03-01", "loc": "Store", "cat": "Kitchen Store"}, {"code": "KS-070", "name": "Pickle 5Kg", "opening": 1, "uom": "", "reorder": "", "expiry": "2027-03-08", "loc": "Store", "cat": "Kitchen Store"}, {"code": "KS-071", "name": "Black pepper sachet", "opening": 0, "uom": "", "reorder": "", "expiry": "2027-03-01", "loc": "Store", "cat": "FnB"}, {"code": "KS-072", "name": "Salt sachet", "opening": 1, "uom": "", "reorder": "", "expiry": "2028-05-01", "loc": "Store", "cat": "FnB"}, {"code": "KS-073", "name": "Goodwyn darjeeling Tea", "opening": 0, "uom": "", "reorder": "", "expiry": "2027-11-01", "loc": "Store", "cat": "FnB"}, {"code": "KS-074", "name": "Goodwyn Assam Tea", "opening": 4, "uom": "", "reorder": "", "expiry": "2028-03-01", "loc": "Store", "cat": "FnB"}, {"code": "KS-075", "name": "Sugar Free", "opening": 3, "uom": "", "reorder": "", "expiry": "2027-12-09", "loc": "Store", "cat": "Kitchen Store"}, {"code": "KS-076", "name": "Cookies", "opening": 31, "uom": "", "reorder": "", "expiry": "2026-12-30", "loc": "Store", "cat": "FnB"}, {"code": "KS-077", "name": "Brown sugar", "opening": 2, "uom": "", "reorder": "", "expiry": "2027-05-25", "loc": "Store", "cat": "FnB"}, {"code": "KS-078", "name": "Milk powder sachet", "opening": 3, "uom": "", "reorder": "", "expiry": "", "loc": "Store", "cat": "FnB"}, {"code": "KS-079", "name": "WHITE Suger sachet", "opening": 2, "uom": "", "reorder": "", "expiry": "2028-05-08", "loc": "Store", "cat": "FnB"}, {"code": "KS-080", "name": "Mouth freshner", "opening": 1, "uom": "", "reorder": "", "expiry": "2027-01-16", "loc": "Store", "cat": "FnB"}, {"code": "KS-081", "name": "Kaju whole", "opening": 0.5, "uom": "", "reorder": "", "expiry": "2027-01-01", "loc": "Store", "cat": "Kitchen Store"}, {"code": "KS-082", "name": "Ragi Bites", "opening": 0, "uom": "", "reorder": "", "expiry": "2027-03-19", "loc": "Store", "cat": "FnB"}, {"code": "KS-083", "name": "Chilli flakes", "opening": 0, "uom": "", "reorder": "", "expiry": "2026-10-01", "loc": "Store", "cat": "Kitchen Store"}, {"code": "KS-084", "name": "Oregano", "opening": 0, "uom": "", "reorder": "", "expiry": "2027-01-01", "loc": "Store", "cat": "Kitchen Store"}, {"code": "KS-085", "name": "Tomato puree", "opening": 10, "uom": "", "reorder": "", "expiry": "2028-02-01", "loc": "Store", "cat": "Kitchen Store"}, {"code": "KS-086", "name": "Baby corn", "opening": 2, "uom": "", "reorder": "", "expiry": "2027-04-01", "loc": "Store", "cat": "Kitchen Store"}, {"code": "KS-087", "name": "Makhana .250GM PKT", "opening": 0, "uom": "", "reorder": "", "expiry": "2027-05-01", "loc": "Store", "cat": "Kitchen Store"}, {"code": "KS-088", "name": "Pink salt", "opening": 0, "uom": "", "reorder": "", "expiry": "2027-01-01", "loc": "Store", "cat": "Kitchen Store"}, {"code": "KS-089", "name": "Black salt", "opening": 1, "uom": "", "reorder": "", "expiry": "2029-04-01", "loc": "Store", "cat": "Kitchen Store"}, {"code": "KS-090", "name": "Pineapple slice", "opening": 1, "uom": "", "reorder": "", "expiry": "2028-02-10", "loc": "Store", "cat": "Kitchen Store"}, {"code": "KS-091", "name": "Button mushroom", "opening": 2, "uom": "", "reorder": "", "expiry": "2028-01-01", "loc": "Store", "cat": "Kitchen Store"}, {"code": "KS-092", "name": "Fruit cocktail", "opening": 2, "uom": "", "reorder": "", "expiry": "2027-07-01", "loc": "Store", "cat": "Kitchen Store"}, {"code": "KS-093", "name": "Corn flakes", "opening": 0, "uom": "", "reorder": "", "expiry": "2026-11-05", "loc": "Store", "cat": "FnB"}, {"code": "KS-094", "name": "Baked beans", "opening": 2, "uom": "", "reorder": "", "expiry": "2027-06-01", "loc": "Store", "cat": "Kitchen Store"}, {"code": "KS-095", "name": "Soda", "opening": 12, "uom": "", "reorder": "", "expiry": "2027-02-11", "loc": "Store", "cat": "FnB"}, {"code": "KS-096", "name": "Aromat", "opening": 1, "uom": "", "reorder": "", "expiry": "2027-01-03", "loc": "Store", "cat": "Kitchen Store"}, {"code": "KS-097", "name": "Mix pickle Sachet", "opening": 1, "uom": "", "reorder": "", "expiry": "2027-04-10", "loc": "Store", "cat": "FnB"}, {"code": "KS-098", "name": "Ketchup", "opening": 0, "uom": "", "reorder": "", "expiry": "2027-03-06", "loc": "Store", "cat": "Kitchen Store"}, {"code": "KS-099", "name": "Salt", "opening": 38, "uom": "", "reorder": "", "expiry": "2028-06-01", "loc": "Store", "cat": "Kitchen Store"}, {"code": "KS-100", "name": "Honey  satchet", "opening": 1, "uom": "", "reorder": "", "expiry": "2027-02-24", "loc": "Store", "cat": "FnB"}, {"code": "KS-101", "name": "Jam satchat", "opening": 0, "uom": "", "reorder": "", "expiry": "2027-01-27", "loc": "Store", "cat": "FnB"}, {"code": "KS-102", "name": "Honey Btl", "opening": 1, "uom": "", "reorder": "", "expiry": "2027-12-22", "loc": "Store", "cat": "Kitchen Store"}, {"code": "KS-103", "name": "Rice papad", "opening": 8, "uom": "", "reorder": "", "expiry": "2027-09-15", "loc": "Store", "cat": "Kitchen Store"}, {"code": "KS-104", "name": "Coconut Powder", "opening": 2, "uom": "", "reorder": "", "expiry": "2026-12-01", "loc": "Store", "cat": "Kitchen Store"}, {"code": "KS-104", "name": "Coffee Beans", "opening": 2, "uom": "", "reorder": "", "expiry": "2026-11-05", "loc": "Store", "cat": "FnB"}, {"code": "KS-104", "name": "Green Olive", "opening": 0, "uom": "", "reorder": "", "expiry": "2029-02-24", "loc": "Store", "cat": "Kitchen Store"}, {"code": "KS-104", "name": "Blick Olive", "opening": 0, "uom": "", "reorder": "", "expiry": "2029-02-23", "loc": "Store", "cat": "Kitchen Store"}, {"code": "KS-106", "name": "Maggi", "opening": 1, "uom": "", "reorder": "", "expiry": "2026-12-01", "loc": "Store", "cat": "Kitchen Store"}, {"code": "FB-001", "name": "Cocacola 2L", "opening": 0, "uom": "", "reorder": "", "expiry": "", "loc": "Store", "cat": "FnB"}, {"code": "FB-002", "name": "Vedica", "opening": 0, "uom": "", "reorder": "", "expiry": "2028-07-17", "loc": "Store", "cat": "FnB"}, {"code": "FB-003", "name": "Mix fruit juice", "opening": 0, "uom": "", "reorder": "", "expiry": "2027-02-01", "loc": "Store", "cat": "Kitchen Store"}, {"code": "FB-004", "name": "Guava Juice", "opening": 10, "uom": "", "reorder": "", "expiry": "2027-01-13", "loc": "Store", "cat": "Kitchen Store"}, {"code": "FB-005", "name": "Pomegranate Juice", "opening": 12, "uom": "", "reorder": "", "expiry": "2027-01-13", "loc": "Store", "cat": "Kitchen Store"}, {"code": "FB-006", "name": "Pineapple juice", "opening": 0, "uom": "", "reorder": "", "expiry": "2026-12-01", "loc": "Store", "cat": "Kitchen Store"}, {"code": "FB-007", "name": "Sprite", "opening": 5, "uom": "", "reorder": "", "expiry": "2026-12-12", "loc": "Store", "cat": "FnB"}, {"code": "FB-008", "name": "Strawberry syrup", "opening": 2, "uom": "", "reorder": "", "expiry": "2026-11-09", "loc": "Store", "cat": "FnB"}, {"code": "FB-009", "name": "Kiwi syrup", "opening": 0, "uom": "", "reorder": "", "expiry": "", "loc": "Store", "cat": "FnB"}, {"code": "FB-010", "name": "Pineapple syrup", "opening": 0, "uom": "", "reorder": "", "expiry": "2026-10-08", "loc": "Store", "cat": "FnB"}, {"code": "FB-011", "name": "Litchi syrup", "opening": 0, "uom": "", "reorder": "", "expiry": "2026-12-31", "loc": "Store", "cat": "FnB"}, {"code": "FB-012", "name": "Blue curcao", "opening": 1, "uom": "", "reorder": "", "expiry": "2027-04-02", "loc": "Store", "cat": "FnB"}, {"code": "FB-013", "name": "Mojito mint", "opening": 0, "uom": "", "reorder": "", "expiry": "2027-08-15", "loc": "Store", "cat": "FnB"}, {"code": "FB-014", "name": "Watermelon syrup", "opening": 1, "uom": "", "reorder": "", "expiry": "2027-01-02", "loc": "Store", "cat": "FnB"}, {"code": "FB-015", "name": "Red Bull", "opening": 2, "uom": "", "reorder": "", "expiry": "2028-02-01", "loc": "Store", "cat": "FnB"}, {"code": "FB-016", "name": "Mango", "opening": 8, "uom": "", "reorder": "", "expiry": "2027-01-29", "loc": "Store", "cat": "Kitchen Store"}, {"code": "FB-017", "name": "Apple", "opening": 0, "uom": "", "reorder": "", "expiry": "2027-01-03", "loc": "Store", "cat": "Kitchen Store"}, {"code": "KS-106", "name": "DALIYA", "opening": 0, "uom": "", "reorder": "", "expiry": "2027-01-04", "loc": "Store", "cat": "Kitchen Store"}, {"code": "KS-107", "name": "JAGGRY", "opening": 2, "uom": "", "reorder": "", "expiry": "", "loc": "Store", "cat": "Kitchen Store"}, {"code": "KS-108", "name": "ATTA", "opening": 3, "uom": "", "reorder": "", "expiry": "", "loc": "Store", "cat": "Kitchen Store"}, {"code": "KS-109", "name": "MAIDA", "opening": 0, "uom": "", "reorder": "", "expiry": "", "loc": "Store", "cat": "Kitchen Store"}, {"code": "KS-110", "name": "SUGER", "opening": 50, "uom": "", "reorder": "", "expiry": "", "loc": "Store", "cat": "Kitchen Store"}, {"code": "KS-111", "name": "OIL TIN", "opening": 1, "uom": "", "reorder": "", "expiry": "", "loc": "Store", "cat": "Kitchen Store"}, {"code": "KS-112", "name": "CLING FLIM", "opening": 6, "uom": "", "reorder": "", "expiry": "", "loc": "Store", "cat": "Kitchen Store"}, {"code": "KS-113", "name": "SILVER FOIL", "opening": 3, "uom": "", "reorder": "", "expiry": "", "loc": "Store", "cat": "Kitchen Store"}, {"code": "KS-114", "name": "SWEET CHILLI S", "opening": 0, "uom": "", "reorder": "", "expiry": "", "loc": "Store", "cat": "Kitchen Store"}, {"code": "KS-115", "name": "GHERKIN", "opening": 0, "uom": "", "reorder": "", "expiry": "", "loc": "Store", "cat": "Kitchen Store"}, {"code": "KS-116", "name": "JALAPENO", "opening": 0, "uom": "", "reorder": "", "expiry": "", "loc": "Store", "cat": "Kitchen Store"}, {"code": "KS-117", "name": "HRT ROLL", "opening": 3, "uom": "", "reorder": "", "expiry": "", "loc": "Store", "cat": "Kitchen Store"}, {"code": "KS-118", "name": "KASURI METHI", "opening": 0, "uom": "", "reorder": "", "expiry": "", "loc": "Store", "cat": "Kitchen Store"}, {"code": "KS-119", "name": "MASK", "opening": 0, "uom": "", "reorder": "", "expiry": "", "loc": "Store", "cat": "Kitchen Store"}, {"code": "KS-120", "name": "Orange", "opening": 8, "uom": "", "reorder": "", "expiry": "", "loc": "Store", "cat": "Kitchen Store"}, {"code": "KS-121", "name": "STAFF RICE", "opening": 0, "uom": "", "reorder": "", "expiry": "", "loc": "Store", "cat": "Kitchen Store"}, {"code": "KS-122", "name": "GUEST RICE", "opening": 0, "uom": "", "reorder": "", "expiry": "", "loc": "Store", "cat": "Kitchen Store"}, {"code": "KS-123", "name": "SAFFRON 1GM", "opening": 1, "uom": "", "reorder": "", "expiry": "", "loc": "Store", "cat": "Kitchen Store"}, {"code": "KS-124", "name": "PEANUT", "opening": 2, "uom": "", "reorder": "", "expiry": "", "loc": "Store", "cat": "Kitchen Store"}, {"code": "KS-125", "name": "CHOLE", "opening": 2, "uom": "", "reorder": "", "expiry": "", "loc": "Store", "cat": "Kitchen Store"}, {"code": "KS-126", "name": "BLACK CHANA", "opening": 1, "uom": "", "reorder": "", "expiry": "", "loc": "Store", "cat": "Kitchen Store"}, {"code": "KS-127", "name": "MUSTURD OIL", "opening": 1, "uom": "", "reorder": "", "expiry": "", "loc": "Store", "cat": "Kitchen Store"}, {"code": "KS-128", "name": "RAJMA", "opening": 8, "uom": "", "reorder": "", "expiry": "", "loc": "Store", "cat": "Kitchen Store"}, {"code": "KS-129", "name": "KEVDA WATER 500ML", "opening": 0, "uom": "", "reorder": "", "expiry": "", "loc": "Store", "cat": "Kitchen Store"}, {"code": "KS-130", "name": "ROSE WATER", "opening": 0, "uom": "", "reorder": "", "expiry": "", "loc": "Store", "cat": "Kitchen Store"}, {"code": "KS-131", "name": "WHOLE MOONG", "opening": 4, "uom": "", "reorder": "", "expiry": "", "loc": "Store", "cat": "Kitchen Store"}, {"code": "DF-001", "name": "FROZINE Sweet corn", "opening": 12, "uom": "", "reorder": "", "expiry": "2028-01-11", "loc": "Deep Freeze", "cat": "Deep Freeze"}, {"code": "DF-002", "name": "Cheese slice", "opening": 3, "uom": "", "reorder": "", "expiry": "2027-02-17", "loc": "Deep Freeze", "cat": "Deep Freeze"}, {"code": "DF-003", "name": "Butter chiplet SCHOOL PACK", "opening": 20, "uom": "", "reorder": "", "expiry": "2027-06-19", "loc": "Deep Freeze", "cat": "Deep Freeze"}, {"code": "DF-004", "name": "Butter 500GM", "opening": 30, "uom": "", "reorder": "", "expiry": "2027-07-11", "loc": "Deep Freeze", "cat": "Deep Freeze"}, {"code": "DF-005", "name": "French fries", "opening": 1, "uom": "", "reorder": "", "expiry": "2028-04-28", "loc": "Deep Freeze", "cat": "Deep Freeze"}, {"code": "DF-006", "name": "Potato wedge", "opening": 1, "uom": "", "reorder": "", "expiry": "2027-01-16", "loc": "Deep Freeze", "cat": "Deep Freeze"}, {"code": "DF-007", "name": "Cheese block", "opening": 1, "uom": "", "reorder": "", "expiry": "2027-03-05", "loc": "Deep Freeze", "cat": "Deep Freeze"}, {"code": "DF-008", "name": "Frozen Peas", "opening": 5, "uom": "", "reorder": "", "expiry": "2027-07-01", "loc": "Deep Freeze", "cat": "Deep Freeze"}, {"code": "DF-009", "name": "Soya Chap", "opening": 1, "uom": "", "reorder": "", "expiry": "2027-05-12", "loc": "Deep Freeze", "cat": "Deep Freeze"}, {"code": "DF-010", "name": "Strabbry Ice Cream", "opening": 2, "uom": "", "reorder": "", "expiry": "2027-07-26", "loc": "Deep Freeze", "cat": "Deep Freeze"}, {"code": "DF-011", "name": "Vanila", "opening": 4, "uom": "", "reorder": "", "expiry": "2027-07-14", "loc": "Deep Freeze", "cat": "Deep Freeze"}, {"code": "DF-012", "name": "Butter  Sctoch", "opening": 1, "uom": "", "reorder": "", "expiry": "2027-04-13", "loc": "Deep Freeze", "cat": "Deep Freeze"}, {"code": "DF-013", "name": "Paan", "opening": 0, "uom": "", "reorder": "", "expiry": "2027-03-26", "loc": "Deep Freeze", "cat": "Deep Freeze"}, {"code": "DF-014", "name": "Mango", "opening": 0, "uom": "", "reorder": "", "expiry": "2027-05-19", "loc": "Deep Freeze", "cat": "Deep Freeze"}, {"code": "DF-015", "name": "Chocolet", "opening": 1, "uom": "", "reorder": "", "expiry": "2027-05-12", "loc": "Deep Freeze", "cat": "Deep Freeze"}, {"code": "DF-016", "name": "Spring Roll Sheet", "opening": 2, "uom": "", "reorder": "", "expiry": "2028-05-18", "loc": "Deep Freeze", "cat": "Deep Freeze"}, {"code": "DF-016", "name": "Ice Cube", "opening": 25, "uom": "", "reorder": "", "expiry": "2026-12-01", "loc": "Deep Freeze", "cat": "Deep Freeze"}];
+let S_ITEMS=loadJSON(STORE_ITEMS_KEY,null);
+let S_ISSUES=loadJSON(STORE_ISSUES_KEY,[]);
+let S_RECEIPTS=loadJSON(STORE_RECEIPTS_KEY,[]);
+if(!S_ITEMS||!S_ITEMS.length){S_ITEMS=STORE_SEED.map(o=>({...o}));saveJSON(STORE_ITEMS_KEY,S_ITEMS);}
+let S_TAB='dash', S_SYNCED=false;
+
+function storeSaveLocal(){saveJSON(STORE_ITEMS_KEY,S_ITEMS);saveJSON(STORE_ISSUES_KEY,S_ISSUES);saveJSON(STORE_RECEIPTS_KEY,S_RECEIPTS);saveJSON(STORE_CATS_KEY,S_CATS);}
+function fbCol(fn,col,id,data){try{if(window._fbReady&&window._fb&&window._fb[fn])window._fb[fn](col,id,data);}catch(e){}}
+function storeSaveAll(){storeSaveLocal();}
+async function storePullCloud(){
+  if(!window._fbReady||!window._fb||!window._fb.loadCol)return;
+  try{
+    const [ci,ii,ri,sc,rq]=await Promise.all([window._fb.loadCol('pm_store_items'),window._fb.loadCol('pm_store_issues'),window._fb.loadCol('pm_store_receipts'),window._fb.loadCol('pm_store_cats'),window._fb.loadCol('pm_store_reqs')]);
+    let ch=false;
+    if(ci&&ci.length>=S_ITEMS.length&&ci.length){S_ITEMS=ci;ch=true;}
+    if(ii&&ii.length>=S_ISSUES.length){S_ISSUES=ii;ch=true;}
+    if(ri&&ri.length>=S_RECEIPTS.length){S_RECEIPTS=ri;ch=true;}
+    if(sc&&sc.length){const names=[...new Set(sc.map(r=>r.name).filter(Boolean))];if(names.length>=S_CATS.length){S_CATS=names;ch=true;}}
+    if(rq&&rq.length>=S_REQS.length){S_REQS=rq;S_REQDIRTY=true;ch=true;}
+    if(ch){storeSaveLocal();renderStore();toast('☁ Store cloud se sync ho gaya');}
+  }catch(e){}
+}
+/* ---- categories ---- */
+const STORE_CATS_KEY='ginger_store_cats_v1';
+const STORE_CATS_SEED=["Kitchen Store","FnB","Deep Freeze","Housekeeping","Stationery"];
+let S_CATS=loadJSON(STORE_CATS_KEY,null);
+if(!S_CATS||!S_CATS.length){S_CATS=[...STORE_CATS_SEED];saveJSON(STORE_CATS_KEY,S_CATS);}
+function sCatPrefix(cat){const t=(cat||'').replace(/[^A-Za-z]/g,'').slice(0,2).toUpperCase();return t||'IT';}
+function sGenCode(prefix){prefix=(prefix||'IT').toUpperCase().replace(/[^A-Z]/g,'')||'IT';let n=0;S_ITEMS.forEach(i=>{const c=i.code||'',p=prefix+'-';if(c.indexOf(p)===0){const num=parseInt(c.slice(p.length),10);if(num>n)n=num;}});let code;do{n++;code=prefix+'-'+String(n).padStart(3,'0');}while(sItem(code));return code;}
+function sFillCatSel(id,all){const el=document.getElementById(id);if(!el)return;const cur=el.value;el.innerHTML=(all?'<option value="">Sab Categories</option>':'')+S_CATS.map(c=>`<option value="${esc(c)}" ${c===cur?'selected':''}>${esc(c)}</option>`).join('');if(!all){if(!S_CATS.includes(el.value)&&S_CATS.length){el.value=S_CATS[0];}const pf=document.getElementById('sb_prefix');if(pf&&!pf.value)pf.value=sCatPrefix(el.value);}}
+function sCatOpts(sel){return S_CATS.map(c=>`<option ${c===sel?'selected':''}>${esc(c)}</option>`).join('');}
+function sAddCat(){const el=document.getElementById('sb_newcat');const v=el.value.trim();if(!v){toast('Category ka naam likho',true);return;}if(S_CATS.includes(v)){toast('Ye category pehle se hai',true);return;}S_CATS.push(v);storeSaveLocal();fbCol('saveToCol','pm_store_cats',v,{name:v});el.value='';renderStore();toast('✅ Category add ho gayi');}
+function sRenderCatList(){const el=document.getElementById('sb_catlist');if(!el)return;el.innerHTML=S_CATS.map(c=>{const n=S_ITEMS.filter(i=>i.cat===c).length;return `<span class="pill" style="margin:0 6px 6px 0;display:inline-block">${esc(c)} · ${n}</span>`;}).join('');}
+function sBulkAdd(){
+  const cat=document.getElementById('sb_cat').value;
+  const prefix=document.getElementById('sb_prefix').value.trim().toUpperCase()||sCatPrefix(cat);
+  const lines=document.getElementById('sb_text').value.split('\n').map(l=>l.trim()).filter(Boolean);
+  if(!cat){toast('Category chuno',true);return;}
+  if(!lines.length){toast('Koi item nahi likha',true);return;}
+  let added=0,first='';
+  lines.forEach(ln=>{const p=ln.split('|').map(x=>x.trim());const name=p[0];if(!name)return;
+    const code=sGenCode(prefix);if(!first)first=code;
+    const it={code,name,opening:+(p[3]||0)||0,uom:p[1]||'',reorder:p[2]||'',expiry:'',loc:'',cat};
+    S_ITEMS.push(it);fbCol('saveToCol','pm_store_items',code,it);added++;});
+  document.getElementById('sb_text').value='';
+  storeSaveLocal();renderStore();toast(`✅ ${added} items add ho gaye (${esc(cat)} · ${first}…)`);
+}
+/* ---- calcs ---- */
+const sItem=c=>S_ITEMS.find(i=>i.code===c);
+const sIssued=c=>S_ISSUES.filter(e=>e.code===c).reduce((a,e)=>a+(+e.qty||0),0);
+const sReceived=c=>S_RECEIPTS.filter(e=>e.code===c).reduce((a,e)=>a+(+e.qty||0),0);
+function sCurrent(c){const it=sItem(c);return (it?(+it.opening||0):0)+sReceived(c)-sIssued(c);}
+function sStatus(c){const cur=sCurrent(c);if(cur<=0)return 'OUT';const it=sItem(c);const ro=+((it&&it.reorder)||0);if(ro>0&&cur<=ro)return 'LOW';return 'OK';}
+function sPill(st){return st==='OUT'?'<span class="st-out">OUT OF STOCK</span>':st==='LOW'?'<span class="st-low">LOW STOCK</span>':'<span class="st-ok">OK</span>';}
+/* ---- sub tabs ---- */
+function showStoreTab(t){S_TAB=t;['dash','issue','receipt','stock','datewise','items','multi','slip'].forEach(x=>document.getElementById('st-'+x).classList.add('hide'));document.getElementById('st-'+t).classList.remove('hide');document.querySelectorAll('#storeNav button').forEach(b=>b.classList.remove('active'));const nb=document.getElementById('ns-'+t);if(nb)nb.classList.add('active');renderStore();}
+function renderStore(){if(S_TAB==='dash')sRenderDash();else if(S_TAB==='issue')sRenderIssue();else if(S_TAB==='receipt')sRenderReceipt();else if(S_TAB==='stock')sRenderStock();else if(S_TAB==='datewise')sRenderDatewise();else if(S_TAB==='multi')sRenderMulti();else if(S_TAB==='slip')sRenderSlip();
+else if(S_TAB==='items'){const pmc=currentRole==='pm';['sb_bulkcard','sb_catcard'].forEach(id=>{const el=document.getElementById(id);if(el)el.style.display=pmc?'':'none';});sFillCatSel('sb_cat',false);sRenderCatList();sRenderItems();}}
+/* ---- search-as-you-type ---- */
+function sSuggest(inpId,suggId,codeId){
+  const q=document.getElementById(inpId).value.trim().toLowerCase();
+  const box=document.getElementById(suggId);
+  document.getElementById(codeId).value='';
+  if(q.length<1){box.classList.add('hide');return;}
+  const m=S_ITEMS.filter(i=>i.name.toLowerCase().includes(q)||i.code.toLowerCase().includes(q)).slice(0,12);
+  if(!m.length){box.innerHTML='<div class="sugg-it">Koi item nahi mila</div>';box.classList.remove('hide');return;}
+  box.innerHTML=m.map(i=>`<div class="sugg-it" onclick="sPick('${inpId}','${suggId}','${codeId}','${i.code}')"><b>${esc(i.name)}</b><span>${i.code} · Stock: ${sCurrent(i.code)}${i.uom?' '+esc(i.uom):''}</span></div>`).join('');
+  box.classList.remove('hide');
+}
+function sPick(inpId,suggId,codeId,code){const it=sItem(code);if(!it)return;document.getElementById(inpId).value=it.name;document.getElementById(codeId).value=code;document.getElementById(suggId).classList.add('hide');}
+/* ---- issue ---- */
+function sSaveIssue(){
+  const date=document.getElementById('si_date').value||today();
+  const code=document.getElementById('si_code').value;
+  const qty=+document.getElementById('si_qty').value||0;
+  const dept=document.getElementById('si_dept').value||'';
+  if(!code){toast('Pehle item search karke chuno',true);return;}
+  if(qty<=0){toast('Qty 0 se zyada likho',true);return;}
+  const e={id:uid(),date,code,qty,dept,ts:Date.now()};
+  S_ISSUES.push(e);storeSaveAll();fbCol('saveToCol','pm_store_issues',e.id,e);
+  const nm=(sItem(code)||{}).name||'';
+  document.getElementById('si_item').value='';document.getElementById('si_code').value='';document.getElementById('si_qty').value='';
+  renderStore();toast('✅ Issue save · '+nm+': '+sCurrent(code)+' bacha');
+}
+function sDelIssue(id){if(!confirm('Ye issue entry delete karein?'))return;S_ISSUES=S_ISSUES.filter(e=>e.id!==id);storeSaveAll();fbCol('deleteFromCol','pm_store_issues',id);renderStore();}
+let SI_FORM_HTML=(function(){try{const el=document.getElementById('si_formcard');return el?el.innerHTML:'';}catch(e){return '';}})();
+const S_DEPTS=['Kitchen','FnB Service','Housekeeping','Front Office','Maintenance','Security','Other'];
+function sRenderIssue(){
+  const pm=currentRole==='pm';
+  const fc=document.getElementById('si_formcard');
+  if(!SI_FORM_HTML&&!S_BATCHMODE&&fc)SI_FORM_HTML=fc.innerHTML;
+  if(S_BATCHMODE&&S_BATCH.length&&pm){
+    fc.innerHTML=`<div class="card-head"><h2>📋 Multi Issue (${S_BATCH.length} items)</h2><button class="btn btn-sm" onclick="sBackToMulti()">← Items badlo</button></div>
+    <div class="card-body">
+      <div class="grid g2" style="margin-bottom:10px">
+        <div><label class="lbl">Date *</label><input type="date" id="bi_date" value="${today()}"></div>
+        <div><label class="lbl">Department</label><select id="bi_dept">${S_DEPTS.map(d=>`<option>${d}</option>`).join('')}</select></div>
+      </div>
+      <div class="table-scroll"><table>
+        <tr><th>Item</th><th>Stock</th><th style="width:90px">Qty</th><th></th></tr>
+        ${S_BATCH.map(code=>{const it=sItem(code);return `<tr><td><b>${esc(it?it.name:code)}</b><br><small style="color:var(--ink3)">${code}</small></td><td><b>${sCurrent(code)}</b></td><td><input type="number" id="bq_${code}" min="0" placeholder="0" style="width:80px"></td><td><button class="btn btn-ghost btn-sm" onclick="sBatchRemove('${code}')">✕</button></td></tr>`;}).join('')}
+      </table></div>
+      <button class="btn btn-primary btn-lg" style="width:100%;margin-top:12px" onclick="sBatchIssue()">✅ Sab Issue Karo</button>
+    </div>`;
+  }else{
+    if(SI_FORM_HTML)fc.innerHTML=SI_FORM_HTML;
+    const _sd=document.getElementById('si_date');
+    if(_sd&&!_sd.value)_sd.value=today();
+  }
+  const rows=S_ISSUES.slice().sort((a,b)=>b.ts-a.ts).slice(0,60);
+  const pm2=currentRole==='pm';
+  document.getElementById('storeIssueTable').innerHTML='<tr><th>Date</th><th>Item</th><th>Qty</th><th>Dept</th>'+(pm2?'<th></th>':'')+'</tr>'+
+    (rows.map(e=>{const it=sItem(e.code);return `<tr><td>${fmtD(e.date)}</td><td>${esc(it?it.name:e.code)}<br><small style="color:var(--ink3)">${e.code}</small></td><td><b>${e.qty}</b></td><td>${esc(e.dept||'')}</td>${pm2?`<td><button class="btn btn-ghost btn-sm" onclick="sDelIssue('${e.id}')">🗑</button></td>`:''}</tr>`;}).join('')||'<tr><td colspan="5" style="color:var(--ink3)">Koi entry nahi</td></tr>');
+}
+/* ---- requirement (mangwana) list ---- */
+const STORE_REQS_KEY='ginger_store_reqs_v1';
+let S_REQS=loadJSON(STORE_REQS_KEY,[]);
+let S_REQDRAFT=[];let S_REQINIT=false;let S_REQDIRTY=false;
+function reqSaveLocal(){saveJSON(STORE_REQS_KEY,S_REQS);}
+function sReqSync(){document.querySelectorAll('#rq_list .rq-qty').forEach(x=>{const r=S_REQDRAFT.find(r=>r.code===x.dataset.code);if(r)r.qty=x.value;});}
+function sReqSuggest(){
+  const box=document.getElementById('rq_sugg');if(!box)return;
+  const q=(document.getElementById('rq_q').value||'').trim().toLowerCase();
+  const cf=document.getElementById('rq_cat').value;
+  if(q.length<2){box.classList.add('hide');box.innerHTML='';return;}
+  const m=S_ITEMS.filter(i=>(!cf||i.cat===cf)&&(i.name.toLowerCase().includes(q)||i.code.toLowerCase().includes(q))).slice(0,8);
+  box.innerHTML=m.map(it=>`<div class="sugg-it" onclick="sReqAdd('${it.code}')"><b>${esc(it.name)}</b><span>${it.code} · Stock ${sCurrent(it.code)} · ${esc(it.cat||'')}</span></div>`).join('')||'<div class="sugg-it">Koi item nahi mila</div>';
+  box.classList.remove('hide');
+}
+function sReqAdd(code){
+  sReqSync();
+  if(!S_REQDRAFT.find(r=>r.code===code)){
+    const it=sItem(code),cur=sCurrent(code),rl=parseFloat(it?it.reorder:0)||0;
+    S_REQDRAFT.push({code,qty:rl>cur?String(rl-cur):''});
+  }
+  const q=document.getElementById('rq_q');if(q)q.value='';
+  const bx=document.getElementById('rq_sugg');if(bx){bx.classList.add('hide');bx.innerHTML='';}
+  sRenderReq();
+  const el=document.querySelector('#rq_list .rq-qty[data-code="'+code+'"]');
+  if(el){el.focus();el.select();}
+}
+function sReqRemove(code){sReqSync();S_REQDRAFT=S_REQDRAFT.filter(r=>r.code!==code);sRenderReq();}
+function sReqLow(){
+  sReqSync();let added=0;
+  S_ITEMS.forEach(it=>{
+    if(S_REQDRAFT.find(r=>r.code===it.code))return;
+    const cur=sCurrent(it.code),rl=parseFloat(it.reorder)||0;
+    if(cur<=0||(rl>0&&cur<=rl)){S_REQDRAFT.push({code:it.code,qty:rl>cur?String(rl-cur):''});added++;}
+  });
+  sRenderReq();toast(added?('✅ '+added+' low-stock items add ho gaye'):'Sab stock OK hai ✅');
+}
+function sReqKey(e,code){
+  if(e.key!=='Enter')return;e.preventDefault();
+  const inputs=[...document.querySelectorAll('#rq_list .rq-qty')];
+  const i=inputs.findIndex(x=>x.dataset.code===code);
+  const nx=inputs[i+1];
+  if(nx){nx.focus();nx.select();}
+  else{const b=document.getElementById('rq_savebtn');if(b)b.focus();}
+}
+function sRenderReq(){
+  const list=document.getElementById('rq_list');if(!list)return;
+  sFillCatSel('rq_cat',true);
+  const rd=document.getElementById('rq_date');if(rd&&!rd.value)rd.value=today();
+  list.innerHTML=S_REQDRAFT.map(r=>{const it=sItem(r.code),cur=sCurrent(r.code);
+    return `<div class="srow" style="padding:8px 10px">
+      <span style="flex:1"><b>${esc(it?it.name:r.code)}</b><br><small style="color:var(--ink3)">${r.code} · Stock: ${cur}</small></span>
+      <input class="rq-qty" data-code="${r.code}" type="number" min="0" placeholder="Kitna?" value="${esc(r.qty||'')}"
+        onkeydown="sReqKey(event,'${r.code}')" onfocus="this.select()" style="width:90px">
+      <button class="btn btn-ghost btn-sm" onclick="sReqRemove('${r.code}')">✕</button></div>`;
+  }).join('')||'<div style="padding:14px;color:var(--ink3);font-size:13px">Upar search karke items add karo, ya "⚠ Low-stock add karo" dabao</div>';
+  const sv=document.getElementById('rq_saved');
+  const rows=S_REQS.slice().sort((a,b)=>b.ts-a.ts);
+  sv.innerHTML=rows.map(r=>{const tq=r.items.reduce((t,x)=>t+(+x.qty||0),0);
+    return `<div class="srow" style="padding:8px 4px"><span style="flex:1"><b>${fmtD(r.date)}</b> <small style="color:var(--ink3)">· ${r.items.length} items · Total ${tq}</small></span>
+    <button class="btn btn-sm" onclick="sReqView('${r.id}')">👁</button>
+    <button class="btn btn-sm" onclick="sPrintReq('${r.id}')">🖨</button>
+    <button class="btn btn-ghost btn-sm" onclick="sReqDel('${r.id}')">🗑</button></div>
+    <div id="rqv_${r.id}" class="hide" style="padding:4px 4px 8px 12px"></div>`;}).join('')
+    ||'<div style="color:var(--ink3);font-size:13px">Abhi koi saved list nahi</div>';
+}
+function sReqView(id){
+  const r=S_REQS.find(x=>x.id===id);if(!r)return;
+  const el=document.getElementById('rqv_'+id);if(!el)return;
+  if(el.classList.contains('hide')){
+    el.innerHTML='<table style="width:100%;font-size:13px">'+r.items.map((x,i)=>{const it=sItem(x.code);return `<tr><td>${i+1}</td><td>${esc(it?it.name:x.code)}</td><td style="text-align:right"><b>${x.qty}</b></td></tr>`;}).join('')+'</table>';
+    el.classList.remove('hide');
+  }else el.classList.add('hide');
+}
+function sReqSave(){
+  sReqSync();
+  const items=S_REQDRAFT.filter(r=>+r.qty>0).map(r=>({code:r.code,qty:+r.qty}));
+  if(!items.length){toast('Kisi item me qty to daalo',true);return;}
+  const d=document.getElementById('rq_date').value||today();
+  const r={id:uid(),date:d,items,ts:Date.now()};
+  S_REQS.push(r);reqSaveLocal();fbCol('saveToCol','pm_store_reqs',r.id,r);
+  S_REQDRAFT=[];sRenderReq();toast('✅ Requirement list save ('+items.length+' items)');
+}
+function sReqDel(id){if(!confirm('Ye list delete karein?'))return;S_REQS=S_REQS.filter(r=>r.id!==id);reqSaveLocal();fbCol('deleteFromCol','pm_store_reqs',id);sRenderReq();}
+function sPrintReq(id){
+  const r=S_REQS.find(x=>x.id===id);if(!r)return;
+  document.getElementById('slipPrint').innerHTML='';
+  const th='border:1px solid #000;padding:6px;background:#eee';
+  const rows=r.items.map((x,i)=>{const it=sItem(x.code);
+    return `<tr><td style="border:1px solid #000;padding:6px;text-align:center">${i+1}</td><td style="border:1px solid #000;padding:6px">${esc(it?it.name:x.code)}</td><td style="border:1px solid #000;padding:6px;text-align:center">${sCurrent(x.code)}</td><td style="border:1px solid #000;padding:6px;text-align:center"><b>${x.qty}</b></td></tr>`;}).join('');
+  document.getElementById('reqPrint').innerHTML=
+  `<div style="font-family:Arial,Helvetica,sans-serif;color:#000;padding:6px">
+    <div style="text-align:center;border-bottom:2px solid #000;padding-bottom:8px;margin-bottom:10px">
+      <div style="font-size:20px;font-weight:800">GINGER JAIPUR — AJMER ROAD</div>
+      <div style="font-size:14px;margin-top:2px">Store — Purchase Requirement</div>
+      <div style="font-size:13px;margin-top:2px">Date: ${fmtD(r.date)}</div>
+    </div>
+    <table style="width:100%;border-collapse:collapse;font-size:13px">
+      <tr><th style="${th}">S.No</th><th style="${th}">Item</th><th style="${th}">Current Stock</th><th style="${th}">Order Qty</th></tr>
+      ${rows}
+      <tr><td colspan="3" style="border:1px solid #000;padding:6px;text-align:right"><b>Total</b></td><td style="border:1px solid #000;padding:6px;text-align:center"><b>${r.items.length} items</b></td></tr>
+    </table>
+    <div style="display:flex;justify-content:space-between;margin-top:44px;font-size:13px">
+      <div style="text-align:center">Prepared By<br><br>........................</div>
+      <div style="text-align:center">Approved By<br><br>........................</div>
+    </div>
+  </div>`;
+  setTimeout(()=>window.print(),60);
+}
+/* ---- daily slip ---- */
+function sSlipRows(d){return S_ISSUES.filter(e=>e.date===d).sort((a,b)=>((a.dept||'')<(b.dept||'')?-1:1));}
+function sRenderSlip(){
+  const dp=document.getElementById('sl_date');
+  if(dp&&!dp.value)dp.value=today();
+  const d=(dp&&dp.value)||today();
+  const rows=sSlipRows(d);
+  const totQ=rows.reduce((t,e)=>t+(+e.qty||0),0);
+  document.getElementById('sl_meta').textContent=fmtD(d)+' · '+rows.length+' entries · Total qty '+totQ;
+  const body=rows.map((e,i)=>{const it=sItem(e.code);return `<tr><td>${i+1}</td><td><b>${esc(it?it.name:e.code)}</b><br><small style="color:var(--ink3)">${e.code}</small></td><td>${esc(it?(it.uom||'-'):'-')}</td><td><b>${e.qty}</b></td><td>${esc(e.dept||'-')}</td></tr>`;}).join('');
+  document.getElementById('slipView').innerHTML='<tr><th>#</th><th>Item</th><th>UOM</th><th>Qty</th><th>Dept</th></tr>'+(body||'<tr><td colspan="5" style="color:var(--ink3)">Is date ko koi issue nahi hua</td></tr>');
+  const pb=rows.map((e,i)=>{const it=sItem(e.code);return `<tr><td style="border:1px solid #000;padding:6px;text-align:center">${i+1}</td><td style="border:1px solid #000;padding:6px">${esc(it?it.name:e.code)}</td><td style="border:1px solid #000;padding:6px;text-align:center">${esc(it?(it.uom||'-'):'-')}</td><td style="border:1px solid #000;padding:6px;text-align:center"><b>${e.qty}</b></td><td style="border:1px solid #000;padding:6px">${esc(e.dept||'-')}</td></tr>`;}).join('');
+  const th='border:1px solid #000;padding:6px;background:#eee';
+  document.getElementById('slipPrint').innerHTML=
+  `<div style="font-family:Arial,Helvetica,sans-serif;color:#000;padding:6px">
+    <div style="text-align:center;border-bottom:2px solid #000;padding-bottom:8px;margin-bottom:10px">
+      <div style="font-size:20px;font-weight:800">GINGER JAIPUR — AJMER ROAD</div>
+      <div style="font-size:14px;margin-top:2px">Store — Daily Issue Summary</div>
+      <div style="font-size:13px;margin-top:2px">Date: ${fmtD(d)}</div>
+    </div>
+    <table style="width:100%;border-collapse:collapse;font-size:13px">
+      <tr><th style="${th}">S.No</th><th style="${th}">Item</th><th style="${th}">UOM</th><th style="${th}">Qty</th><th style="${th}">Department</th></tr>
+      ${pb||'<tr><td colspan="5" style="border:1px solid #000;padding:10px;text-align:center">Koi issue nahi hua</td></tr>'}
+      <tr><td colspan="3" style="border:1px solid #000;padding:6px;text-align:right"><b>Total</b></td><td style="border:1px solid #000;padding:6px;text-align:center"><b>${totQ}</b></td><td style="border:1px solid #000;padding:6px"><b>${rows.length} entries</b></td></tr>
+    </table>
+    <div style="display:flex;justify-content:space-between;margin-top:44px;font-size:13px">
+      <div style="text-align:center">Store Keeper<br><br>........................</div>
+      <div style="text-align:center">Received By<br><br>........................</div>
+      <div style="text-align:center">Manager<br><br>........................</div>
+    </div>
+  </div>`;
+}
+function sPrintSlip(){document.getElementById('reqPrint').innerHTML='';sRenderSlip();setTimeout(()=>window.print(),60);}
+/* ---- multi issue ---- */
+let S_BATCH=[];let S_BATCHMODE=false;
+function sOpenMulti(){if(currentRole!=='pm'){toast('Sirf PM issue kar sakta hai',true);return;}S_BATCH=[];S_BATCHMODE=false;showStoreTab('multi');}
+function sMultiFiltered(){
+  const q=(document.getElementById('mu_q').value||'').trim().toLowerCase();
+  const cf=document.getElementById('mu_cat').value;
+  return S_ITEMS.filter(i=>(!cf||i.cat===cf)&&(!q||i.name.toLowerCase().includes(q)||i.code.toLowerCase().includes(q)));
+}
+function sRenderMulti(){
+  sFillCatSel('mu_cat',true);
+  const rows=sMultiFiltered();
+  document.getElementById('mu_count').textContent=rows.length+' items';
+  document.getElementById('mu_list').innerHTML=rows.map(it=>{
+    const sel=S_BATCH.includes(it.code);
+    return `<label style="display:flex;gap:10px;align-items:center;padding:9px 10px;border-bottom:1px solid var(--line);cursor:pointer">
+      <input type="checkbox" ${sel?'checked':''} onchange="sToggleMulti('${it.code}',this.checked)" style="width:20px;height:20px;flex:none">
+      <span style="flex:1"><b>${esc(it.name)}</b><br><small style="color:var(--ink3)">${it.code} · ${esc(it.cat||'')}</small></span>
+      <span class="pill">Stock: ${sCurrent(it.code)}</span></label>`;
+  }).join('')||'<div style="padding:16px;color:var(--ink3)">Koi item nahi mila</div>';
+  sMultiCount();
+}
+function sToggleMulti(code,on){if(on){if(!S_BATCH.includes(code))S_BATCH.push(code);}else S_BATCH=S_BATCH.filter(c=>c!==code);sMultiCount();}
+function sMultiAll(on){if(on){sMultiFiltered().forEach(it=>{if(!S_BATCH.includes(it.code))S_BATCH.push(it.code);});}else S_BATCH=[];sRenderMulti();}
+function sMultiCount(){const el=document.getElementById('mu_selcount');if(el)el.innerHTML='<b>'+S_BATCH.length+'</b> select';}
+function sMultiOk(){if(!S_BATCH.length){toast('Pehle kuch items select karo',true);return;}S_BATCHMODE=true;showStoreTab('issue');}
+function sBackToMulti(){S_BATCHMODE=false;showStoreTab('multi');}
+function sBatchRemove(code){S_BATCH=S_BATCH.filter(c=>c!==code);if(!S_BATCH.length)S_BATCHMODE=false;sRenderIssue();}
+function sBatchIssue(){
+  const d=document.getElementById('bi_date').value||today();
+  const dept=document.getElementById('bi_dept').value;
+  let n=0;
+  S_BATCH.slice().forEach(code=>{
+    const el=document.getElementById('bq_'+code);
+    const q=el?+el.value||0:0;
+    if(q>0){const e={id:uid(),date:d,code,qty:q,dept,ts:Date.now()};S_ISSUES.push(e);fbCol('saveToCol','pm_store_issues',e.id,e);n++;}
+  });
+  if(!n){toast('Kisi item me qty nahi daali',true);return;}
+  storeSaveAll();S_BATCH=[];S_BATCHMODE=false;showStoreTab('dash');toast('✅ '+n+' items issue ho gaye');
+}
+/* ---- receipt ---- */
+function sSaveReceipt(){
+  const date=document.getElementById('sr_date').value||today();
+  const code=document.getElementById('sr_code').value;
+  const qty=+document.getElementById('sr_qty').value||0;
+  if(!code){toast('Pehle item search karke chuno',true);return;}
+  if(qty<=0){toast('Qty 0 se zyada likho',true);return;}
+  const e={id:uid(),date,code,qty,supplier:document.getElementById('sr_sup').value.trim(),grn:document.getElementById('sr_grn').value.trim(),ts:Date.now()};
+  S_RECEIPTS.push(e);storeSaveAll();fbCol('saveToCol','pm_store_receipts',e.id,e);
+  ['sr_item','sr_code','sr_qty','sr_sup','sr_grn'].forEach(id=>document.getElementById(id).value='');
+  renderStore();toast('✅ Receipt save ho gaya');
+}
+function sDelReceipt(id){if(!confirm('Ye receipt entry delete karein?'))return;S_RECEIPTS=S_RECEIPTS.filter(e=>e.id!==id);storeSaveAll();fbCol('deleteFromCol','pm_store_receipts',id);renderStore();}
+function sRenderReceipt(){
+  if(!document.getElementById('sr_date').value)document.getElementById('sr_date').value=today();
+  const rows=S_RECEIPTS.slice().sort((a,b)=>b.ts-a.ts).slice(0,60);
+  const pm=currentRole==='pm';
+  document.getElementById('storeReceiptTable').innerHTML='<tr><th>Date</th><th>Item</th><th>Qty</th><th>Supplier</th><th>GRN</th>'+(pm?'<th></th>':'')+'</tr>'+
+    (rows.map(e=>{const it=sItem(e.code);return `<tr><td>${fmtD(e.date)}</td><td>${esc(it?it.name:e.code)}<br><small style="color:var(--ink3)">${e.code}</small></td><td><b>${e.qty}</b></td><td>${esc(e.supplier||'')}</td><td>${esc(e.grn||'')}</td>${pm?`<td><button class="btn btn-ghost btn-sm" onclick="sDelReceipt('${e.id}')">🗑</button></td>`:''}</tr>`;}).join('')||'<tr><td colspan="6" style="color:var(--ink3)">Koi entry nahi</td></tr>');
+}
+/* ---- dashboard ---- */
+function sRenderDash(){
+  const pmc=currentRole==='pm';const mc=document.getElementById('sb_multicard');if(mc)mc.style.display=pmc?'':'none';
+  const t=today(), tm=t.slice(0,7);
+  let out=0,low=0,expN=0,todayQ=0,monthQ=0;
+  const expList=[],lowList=[];
+  const nowD=new Date(t+'T00:00:00');
+  S_ITEMS.forEach(it=>{
+    const st=sStatus(it.code), cur=sCurrent(it.code);
+    if(st==='OUT'){out++;lowList.push({it,cur,st});}
+    else if(st==='LOW'){low++;lowList.push({it,cur,st});}
+    if(it.expiry&&cur>0){const dd=Math.round((new Date(it.expiry+'T00:00:00')-nowD)/864e5);if(dd>=0&&dd<=30)expList.push({it,cur,dd});}
+  });
+  S_ISSUES.forEach(e=>{if(e.date===t)todayQ+=+e.qty||0;if(e.date.slice(0,7)===tm)monthQ+=+e.qty||0;});
+  expList.sort((a,b)=>a.dd-b.dd);lowList.sort((a,b)=>(a.st==='OUT'?-1:1)-(b.st==='OUT'?-1:1));
+  const kpi=(l,v,cls)=>`<div class="kpi ${cls||''}"><div class="kl">${l}</div><div class="kv">${v}</div></div>`;
+  document.getElementById('storeKpis').innerHTML=
+    kpi('Total Items',S_ITEMS.length)+kpi('Out of Stock',out,'red')+kpi('Low Stock',low,'amber')+
+    kpi('Issued Today',todayQ,'blue')+kpi('Issued This Month',monthQ,'blue')+kpi('Expiry ≤30d',expN=expList.length,'amber');
+  document.getElementById('storeLowList').innerHTML=lowList.slice(0,8).map(o=>`<div class="srow"><span>${esc(o.it.name)} <small style="color:var(--ink3)">${o.it.code}</small></span><span><b>${o.cur}</b> ${sPill(o.st)}</span></div>`).join('')||'<div style="color:var(--ink3);font-size:13px">Sab OK hai ✅</div>';
+  document.getElementById('storeExpList').innerHTML=expList.slice(0,8).map(o=>`<div class="srow"><span>${esc(o.it.name)} <small style="color:var(--ink3)">${o.it.code}</small></span><span><b>${o.cur}</b> · ${o.dd}d <span class="st-low">EXPIRY</span></span></div>`).join('')||'<div style="color:var(--ink3);font-size:13px">Koi expiry nazdeek nahi ✅</div>';
+  if(!S_REQINIT||S_REQDIRTY){sRenderReq();S_REQINIT=true;S_REQDIRTY=false;}
+}
+/* ---- stock table ---- */
+function sRenderStock(){
+  sFillCatSel('ss_cat',true);
+  const q=(document.getElementById('ss_filter').value||'').trim().toLowerCase();
+  const cf=document.getElementById('ss_cat').value;
+  const rows=S_ITEMS.filter(i=>(!cf||i.cat===cf)&&(!q||i.name.toLowerCase().includes(q)||i.code.toLowerCase().includes(q)));
+  document.getElementById('storeStockTable').innerHTML='<tr><th>Code</th><th>Item</th><th>UOM</th><th>Opening</th><th>Received</th><th>Issued</th><th>Current</th><th>Status</th></tr>'+
+    rows.map(it=>{const cur=sCurrent(it.code);return `<tr><td>${it.code}</td><td><b>${esc(it.name)}</b></td><td>${esc(it.uom||'-')}</td><td>${it.opening||0}</td><td>${sReceived(it.code)}</td><td>${sIssued(it.code)}</td><td><b style="${cur<0?'color:#b3261e':''}">${cur}</b></td><td>${sPill(sStatus(it.code))}</td></tr>`;}).join('');
+}
+/* ---- date-wise matrix (last 30d) ---- */
+function sRenderDatewise(){
+  const cut=new Date();cut.setDate(cut.getDate()-30);const cutS=cut.toISOString().slice(0,10);
+  const dates=[...new Set(S_ISSUES.map(e=>e.date).filter(d=>d>=cutS))].sort();
+  if(!dates.length){document.getElementById('storeDateTable').innerHTML='<tr><td style="color:var(--ink3)">Abhi koi issue entry nahi hai</td></tr>';return;}
+  const act=S_ITEMS.filter(it=>dates.some(d=>S_ISSUES.some(e=>e.code===it.code&&e.date===d)));
+  const cell=(code,d)=>S_ISSUES.filter(e=>e.code===code&&e.date===d).reduce((a,e)=>a+(+e.qty||0),0);
+  let h='<tr><th>Item</th>'+dates.map(d=>`<th>${fmtD(d)}</th>`).join('')+'<th>Total</th></tr>';
+  const dayTot=dates.map(()=>0);
+  act.forEach(it=>{
+    let tot=0;h+='<tr><td><b>'+esc(it.name)+'</b><br><small style="color:var(--ink3)">'+it.code+'</small></td>';
+    dates.forEach((d,j)=>{const v=cell(it.code,d);tot+=v;dayTot[j]+=v;h+=`<td style="${v?'font-weight:800;color:var(--teal)':''}">${v||''}</td>`;});
+    h+=`<td><b>${tot}</b></td></tr>`;
+  });
+  h+='<tr style="background:#eef5f2;font-weight:800"><td>DAY TOTAL</td>'+dayTot.map(v=>`<td>${v||''}</td>`).join('')+`<td>${dayTot.reduce((a,b)=>a+b,0)}</td></tr>`;
+  document.getElementById('storeDateTable').innerHTML=h;
+}
+/* ---- items master ---- */
+function sEditItem(code,f,v){const it=sItem(code);if(!it)return;it[f]=v;storeSaveAll();fbCol('saveToCol','pm_store_items',code,it);}
+function sRenderItems(){
+  sFillCatSel('sm_cat',true);
+  const q=(document.getElementById('sm_filter').value||'').trim().toLowerCase();
+  const cf=document.getElementById('sm_cat').value;
+  const pm=currentRole==='pm';
+  const rows=S_ITEMS.filter(i=>(!cf||i.cat===cf)&&(!q||i.name.toLowerCase().includes(q)||i.code.toLowerCase().includes(q)));
+  document.getElementById('sm_count').textContent=rows.length+' items';
+  document.getElementById('storeItemsTable').innerHTML='<tr><th>Code</th><th>Item</th><th>Category</th><th>Opening<br><small>27-Sep-26</small></th><th>UOM</th><th>Re-order<br>Level</th><th>Expiry</th></tr>'+
+    rows.map(it=>`<tr><td>${it.code}</td><td><b>${esc(it.name)}</b><br><small style="color:var(--ink3)">${esc(it.loc||'')}</small></td>`+
+    (pm?`<td><select class="smini" style="width:104px" onchange="sEditItem('${it.code}','cat',this.value)">${sCatOpts(it.cat)}</select></td>`:`<td>${esc(it.cat||'-')}</td>`)+
+    `<td>${it.opening||0}</td>`+
+    (pm?`<td><input class="smini" value="${esc(it.uom||'')}" onchange="sEditItem('${it.code}','uom',this.value)"></td><td><input class="smini" type="number" value="${esc(String(it.reorder||''))}" onchange="sEditItem('${it.code}','reorder',this.value)"></td>`
+       :`<td>${esc(it.uom||'-')}</td><td>${esc(String(it.reorder||'-'))}</td>`)+
+    `<td>${it.expiry?fmtD(it.expiry):'-'}</td></tr>`).join('');
+}
+</script>
+
 </body>
 </html>
