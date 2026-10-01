@@ -60,9 +60,7 @@
         snap.docs.forEach(d => result[d.id] = d.data().value);
         return result;
       } catch(e) { console.error('FB loadAllSettings:', e); return null; }
-    }
-  };
-
+    },
     async saveToCol(col,id,data){
       try{ await setDoc(doc(db,col,id), data); return true; }
       catch(e){ console.error('FB saveToCol:', e); return false; }
@@ -74,7 +72,9 @@
     async deleteFromCol(col,id){
       try{ await deleteDoc(doc(db,col,id)); return true; }
       catch(e){ console.error('FB deleteFromCol:', e); return false; }
-    },
+    }
+  };
+
   // Auto-load from Firebase on startup
   window._fbReady = true;
   window.dispatchEvent(new Event('fbReady'));
@@ -1074,7 +1074,8 @@ tfoot td{font-weight:800;background:#f0f5f3;border-top:2px solid var(--teal);fon
     <div class="card"><div class="card-head"><h2>🧾 Daily Issue Summary — Stationery</h2>
       <input type="date" id="ty_slip_date" onchange="tRenderSlip()" style="max-width:170px">
       <select id="ty_slip_dept" onchange="tRenderSlip()" style="max-width:200px"></select>
-      <button class="btn btn-primary btn-sm" onclick="tPrintSlip()">🖨 Print / PDF</button></div>
+      <button class="btn btn-primary btn-sm" onclick="tPrintSlip()">🖨 Print / PDF</button>
+      <button class="btn btn-sm" onclick="tExportSlip()">📊 Excel</button></div>
       <div class="card-body">
         <div id="ty_slip_meta" style="color:var(--ink3);font-size:13px;margin-bottom:8px"></div>
         <div class="table-scroll"><table id="statSlipView"></table></div>
@@ -1082,6 +1083,28 @@ tfoot td{font-weight:800;background:#f0f5f3;border-top:2px solid var(--teal);fon
       </div></div>
   </div>
   <div id="tSlipPrint" style="display:none"></div>
+  </div>
+
+  <!-- complete item edit dialog -->
+  <div id="ty_editDlg" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;align-items:center;justify-content:center;padding:16px">
+    <div style="background:#fff;border-radius:12px;max-width:430px;width:100%;padding:18px;max-height:92vh;overflow:auto">
+      <h3 style="margin:0 0 2px">✏️ Item Edit</h3>
+      <div id="ty_edit_code" style="color:#666;font-size:12px;margin-bottom:12px"></div>
+      <label style="display:block;font-size:13px;margin-bottom:8px">Item ka naam (spelling sudhaaro)<input id="ty_edit_name" style="width:100%;padding:8px;margin-top:4px;box-sizing:border-box"></label>
+      <div style="display:flex;gap:8px">
+        <label style="flex:1;font-size:13px">UOM<input id="ty_edit_uom" style="width:100%;padding:8px;margin-top:4px;box-sizing:border-box"></label>
+        <label style="flex:1;font-size:13px">Opening Stock<input id="ty_edit_opening" type="number" style="width:100%;padding:8px;margin-top:4px;box-sizing:border-box"></label>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:8px">
+        <label style="flex:1;font-size:13px">Re-order Level<input id="ty_edit_reorder" type="number" style="width:100%;padding:8px;margin-top:4px;box-sizing:border-box"></label>
+        <label style="flex:1;font-size:13px">Expiry<input id="ty_edit_expiry" placeholder="dd-mmm-yyyy" style="width:100%;padding:8px;margin-top:4px;box-sizing:border-box"></label>
+      </div>
+      <label style="display:block;font-size:13px;margin-top:8px">Location<input id="ty_edit_loc" style="width:100%;padding:8px;margin-top:4px;box-sizing:border-box"></label>
+      <div style="display:flex;gap:8px;margin-top:14px">
+        <button class="btn btn-primary" style="flex:1" onclick="tSaveItemDlg()">💾 Save</button>
+        <button class="btn" style="flex:1" onclick="tCloseItemDlg()">Cancel</button>
+      </div>
+    </div>
   </div>
 
 </div>
@@ -2437,6 +2460,18 @@ async function storePullCloud(){
     if(ch){storeSaveLocal();renderStore();toast('☁ Store cloud se sync ho gaya');}
   }catch(e){}
 }
+async function storePushCloud(){
+  if(!window._fbReady||!window._fb||!window._fb.saveToCol)return;
+  try{
+    const jobs=[];
+    S_ITEMS.forEach(it=>jobs.push(window._fb.saveToCol('pm_store_items',it.code,it)));
+    S_ISSUES.forEach(e=>jobs.push(window._fb.saveToCol('pm_store_issues',e.id,e)));
+    S_RECEIPTS.forEach(e=>jobs.push(window._fb.saveToCol('pm_store_receipts',e.id,e)));
+    S_CATS.forEach(n=>jobs.push(window._fb.saveToCol('pm_store_cats',n,{name:n})));
+    S_REQS.forEach(r=>jobs.push(window._fb.saveToCol('pm_store_reqs',r.id,r)));
+    await Promise.all(jobs);
+  }catch(e){}
+}
 /* ---- categories ---- */
 const STORE_CATS_KEY='ginger_store_cats_v1';
 const STORE_CATS_SEED=["Kitchen Store","FnB","Deep Freeze","Housekeeping","Stationery"];
@@ -2896,17 +2931,17 @@ let T_ISSUES=loadJSON(STAT_ISSUES_KEY,[]);
 let T_RECEIPTS=loadJSON(STAT_RECEIPTS_KEY,[]);
 if(!T_ITEMS||!T_ITEMS.length){T_ITEMS=STAT_SEED.map(o=>({...o}));saveJSON(STAT_ITEMS_KEY,T_ITEMS);}
 let T_TAB='dash', T_SYNCED=false, T_DEPT=T_DEPTS[0];
-/* cloud retry: Firebase der se ready ho to pull dobara chalao + badge update */
+/* cloud retry: Firebase der se ready ho to sync dobara chalao + badge update */
 window.addEventListener('fbReady',()=>{try{
   if(typeof updateFBStatus==='function')updateFBStatus();
-  S_SYNCED=true;T_SYNCED=true;storePullCloud();statPullCloud();
+  S_SYNCED=true;T_SYNCED=true;cloudSyncAll();
 }catch(e){}});
 /* badge tap: cloud sync force retry / wajah batao */
 (function(){
   const el=document.getElementById('fbStatusDot');if(!el||el.dataset.tapped)return;
   el.dataset.tapped='1';el.style.cursor='pointer';el.title='Tap: cloud sync dobara chalao';
   el.addEventListener('click',()=>{
-    if(window._fbReady&&window._fb){S_SYNCED=true;T_SYNCED=true;storePullCloud();statPullCloud();toast('☁ Cloud sync chal raha hai...');}
+    if(window._fbReady&&window._fb){S_SYNCED=true;T_SYNCED=true;cloudSyncAll();toast('☁ Cloud sync chal raha hai...');}
     else toast('Cloud se juda nahi hai — internet on karo, hosting wale link se kholo',true);
   });
 })();
@@ -3142,7 +3177,7 @@ function tRenderItems(){
   document.getElementById('tm_count').textContent=rows.length+' items';
   document.getElementById('statItemsTable').innerHTML='<tr><th>Code</th><th>Item</th><th>Opening<br><small>'+STAT_OPENING_LABEL+'</small></th><th>UOM</th><th>Re-order Level</th>'+(pm?'<th></th>':'')+'</tr>'+
     rows.map(it=>`<tr><td>${it.code}</td><td><b>${esc(it.name)}</b></td><td>${it.opening||0}</td>`+
-    (pm?`<td><input class="smini" value="${esc(it.uom||'')}" onchange="tEditItem('${it.code}','uom',this.value)"></td><td><input class="smini" type="number" value="${esc(String(it.reorder||''))}" onchange="tEditItem('${it.code}','reorder',this.value)"></td><td><button class="btn btn-sm" onclick="tDelItem('${it.code}')">🗑</button></td>`
+    (pm?`<td><input class="smini" value="${esc(it.uom||'')}" onchange="tEditItem('${it.code}','uom',this.value)"></td><td><input class="smini" type="number" value="${esc(String(it.reorder||''))}" onchange="tEditItem('${it.code}','reorder',this.value)"></td><td style="white-space:nowrap"><button class="btn btn-sm" onclick="tEditItemDlg('${it.code}')">✏️</button> <button class="btn btn-sm" onclick="tDelItem('${it.code}')">🗑</button></td>`
        :`<td>${esc(it.uom||'-')}</td><td>${esc(String(it.reorder||'-'))}</td>`)+'</tr>').join('');
 }
 /* ---- daily slip ---- */
@@ -3186,6 +3221,76 @@ function tPrintSlip(){
     </div>
   </div>`;
   setTimeout(()=>window.print(),60);
+}
+
+/* ---- slip Excel export ---- */
+function tSlipCSV(){
+  const date=document.getElementById('ty_slip_date').value||today();
+  const df=document.getElementById('ty_slip_dept').value;
+  const rows=T_ISSUES.filter(e=>e.date===date&&(!df||e.dept===df)).sort((a,b)=>(a.dept||'').localeCompare(b.dept||''));
+  const qq=v=>'"'+String(v==null?'':v).replace(/"/g,'""')+'"';
+  const CRLF=String.fromCharCode(13,10);
+  const lines=[['S.No','Date','Department','Item Code','Item','Qty','UOM','Received By','Remark'].map(qq).join(',')];
+  rows.forEach((e,i)=>{const it=tItem(e.code)||{};
+    lines.push([i+1,date,e.dept||'',e.code,it.name||'',e.qty,it.uom||'',e.recv||'',e.remarks||''].map(qq).join(','));});
+  return String.fromCharCode(0xFEFF)+lines.join(CRLF);
+}
+function tExportSlip(){
+  try{
+    const date=document.getElementById('ty_slip_date').value||today();
+    const df=document.getElementById('ty_slip_dept').value;
+    if(!T_ISSUES.some(e=>e.date===date&&(!df||e.dept===df))){toast('Is date par koi issue nahi',true);return;}
+    const blob=new Blob([tSlipCSV()],{type:'text/csv;charset=utf-8'});
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(blob);
+    a.download='Ginger_Stationery_Slip_'+date+(df?'_'+df.replace(/[^A-Za-z0-9]+/g,''):'')+'.csv';
+    document.body.appendChild(a);a.click();
+    setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},800);
+    toast('✅ Excel file download ho gayi');
+  }catch(e){toast('Download me dikkat aayi',true);}
+}
+/* ---- complete item edit dialog ---- */
+let T_EDIT_CODE=null;
+function tEditItemDlg(code){
+  const it=tItem(code);if(!it)return;
+  T_EDIT_CODE=code;
+  document.getElementById('ty_edit_code').textContent=code;
+  document.getElementById('ty_edit_name').value=it.name||'';
+  document.getElementById('ty_edit_uom').value=it.uom||'';
+  document.getElementById('ty_edit_opening').value=it.opening||0;
+  document.getElementById('ty_edit_reorder').value=it.reorder==null?'':it.reorder;
+  document.getElementById('ty_edit_expiry').value=it.expiry||'';
+  document.getElementById('ty_edit_loc').value=it.loc||'';
+  document.getElementById('ty_editDlg').style.display='flex';
+}
+function tCloseItemDlg(){document.getElementById('ty_editDlg').style.display='none';T_EDIT_CODE=null;}
+function tSaveItemDlg(){
+  const it=tItem(T_EDIT_CODE);if(!it){tCloseItemDlg();return;}
+  const name=(document.getElementById('ty_edit_name').value||'').trim();
+  if(!name){toast('Naam khaali nahi ho sakta',true);return;}
+  it.name=name;
+  it.uom=(document.getElementById('ty_edit_uom').value||'').trim();
+  it.opening=+document.getElementById('ty_edit_opening').value||0;
+  const ro=(document.getElementById('ty_edit_reorder').value||'').trim();
+  it.reorder=ro===''?'':+ro;
+  it.expiry=(document.getElementById('ty_edit_expiry').value||'').trim();
+  it.loc=(document.getElementById('ty_edit_loc').value||'').trim();
+  statSaveLocal();fbCol('saveToCol','pm_stat_items',it.code,it);renderStat();
+  tCloseItemDlg();toast('✅ Item update ho gaya');
+}
+/* ---- local -> cloud push (purana unsynced data Firebase tak) ---- */
+async function statPushCloud(){
+  if(!window._fbReady||!window._fb||!window._fb.saveToCol)return;
+  try{
+    const jobs=[];
+    T_ITEMS.forEach(it=>jobs.push(window._fb.saveToCol('pm_stat_items',it.code,it)));
+    T_ISSUES.forEach(e=>jobs.push(window._fb.saveToCol('pm_stat_issues',e.id,e)));
+    T_RECEIPTS.forEach(e=>jobs.push(window._fb.saveToCol('pm_stat_receipts',e.id,e)));
+    await Promise.all(jobs);
+  }catch(e){}
+}
+function cloudSyncAll(){
+  (async()=>{try{await storePushCloud();await statPushCloud();storePullCloud();statPullCloud();}catch(e){}})();
 }
 
 </script>
