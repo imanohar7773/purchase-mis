@@ -2459,9 +2459,10 @@ document.getElementById('dropZone').addEventListener('dragover',e=>e.preventDefa
 @media(max-width:640px){.grid.g4{grid-template-columns:1fr 1fr}}
 #slipPrint,#reqPrint,#stockPrint,#tSlipPrint,#tStockPrint,#vpoPrint{display:none}
 @media print{
-  body *{visibility:hidden !important;}
-  #slipPrint,#slipPrint *,#reqPrint,#reqPrint *,#stockPrint,#stockPrint *,#tSlipPrint,#tSlipPrint *,#tStockPrint,#tStockPrint *,#vpoPrint,#vpoPrint *{visibility:visible !important;}
-  #slipPrint,#reqPrint,#stockPrint,#tSlipPrint,#tStockPrint,#vpoPrint{display:block !important;position:absolute;left:0;top:0;width:100%;padding:8px;}
+  body>*:not(.print-sheet){display:none !important;}
+  .print-sheet{display:block !important;position:static !important;float:none !important;width:100%;padding:8px;}
+  .print-sheet tr{break-inside:avoid;}
+  @page{margin:10mm;}
 }
 </style>
 
@@ -3419,9 +3420,9 @@ function vpoPOSheet(p){
   return '<div style="text-align:center;margin-bottom:10px"><div style="font-size:18px;font-weight:800">'+esc(p.hotel)+'</div><div style="font-size:15px;font-weight:700;letter-spacing:1px">PURCHASE ORDER</div></div>'+
   '<table style="width:100%;border-collapse:collapse;margin-bottom:10px"><tr><td style="'+td+'"><b>PO No:</b> '+esc(p.no)+'</td><td style="'+td+'"><b>Date:</b> '+fmtD(p.date)+'</td></tr>'+
   '<tr><td style="'+td+'" colspan="2"><b>Vendor:</b> '+esc(p.vendor)+'</td></tr></table>'+
-  '<table style="width:100%;border-collapse:collapse"><tr><th style="'+th+'">S.No</th><th style="'+th+'">Item</th><th style="'+th+'">Qty</th><th style="'+th+'">Rate (Rs.)</th><th style="'+th+'">Amount (Rs.)</th></tr>'+
+  '<table style="width:100%;border-collapse:collapse"><thead><tr><th style="'+th+'">S.No</th><th style="'+th+'">Item</th><th style="'+th+'">Qty</th><th style="'+th+'">Rate (Rs.)</th><th style="'+th+'">Amount (Rs.)</th></tr></thead><tbody>'+
   p.items.map((e,i)=>'<tr><td style="'+td+';text-align:center">'+(i+1)+'</td><td style="'+td+'">'+esc(e.item)+'</td><td style="'+td+';text-align:center">'+e.qty+'</td><td style="'+td+';text-align:right">'+e.rate+'</td><td style="'+td+';text-align:right">'+e.amt.toFixed(2)+'</td></tr>').join('')+
-  '<tr><td style="'+td+';text-align:right" colspan="4"><b>TOTAL</b></td><td style="'+td+';text-align:right"><b>Rs. '+p.total.toFixed(2)+'</b></td></tr></table>'+
+  '<tr><td style="'+td+';text-align:right" colspan="4"><b>TOTAL</b></td><td style="'+td+';text-align:right"><b>Rs. '+p.total.toFixed(2)+'</b></td></tr></tbody></table>'+
   '<div style="display:flex;justify-content:space-between;margin-top:36px;font-size:13px"><div>Prepared By<br><br>....................</div><div>Approved By<br><br>....................</div><div>Vendor Sign<br><br>....................</div></div>';
 }
 function vpoPrintPO(){
@@ -3430,6 +3431,10 @@ function vpoPrintPO(){
   document.getElementById('vpoPrint').innerHTML=vpoPOSheet(VPO_PO);
   window.print();
 }
+/* PRINT FIX 2026-10-01: print wale divs ko body-level par lao + print-sheet class.
+   Pehle visibility+absolute hack se 6 pages bante the aur table ke beech me header ka
+   ghost repeat aata tha. Ab print me sirf sheet aayegi, 1 page. */
+['slipPrint','reqPrint','stockPrint','tSlipPrint','tStockPrint','vpoPrint'].forEach(function(id){var el=document.getElementById(id);if(el){el.classList.add('print-sheet');document.body.appendChild(el);}});
 
 </script>
 </body>
