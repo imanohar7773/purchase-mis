@@ -2896,6 +2896,8 @@ let T_ISSUES=loadJSON(STAT_ISSUES_KEY,[]);
 let T_RECEIPTS=loadJSON(STAT_RECEIPTS_KEY,[]);
 if(!T_ITEMS||!T_ITEMS.length){T_ITEMS=STAT_SEED.map(o=>({...o}));saveJSON(STAT_ITEMS_KEY,T_ITEMS);}
 let T_TAB='dash', T_SYNCED=false, T_DEPT=T_DEPTS[0];
+/* cloud retry: Firebase der se ready ho to pull dobara chalao */
+window.addEventListener('fbReady',()=>{try{S_SYNCED=true;T_SYNCED=true;storePullCloud();statPullCloud();}catch(e){}});
 
 function statSaveLocal(){saveJSON(STAT_ITEMS_KEY,T_ITEMS);saveJSON(STAT_ISSUES_KEY,T_ISSUES);saveJSON(STAT_RECEIPTS_KEY,T_RECEIPTS);}
 function statSaveAll(){statSaveLocal();}
