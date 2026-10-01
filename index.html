@@ -260,6 +260,7 @@ tfoot td{font-weight:800;background:#f0f5f3;border-top:2px solid var(--teal);fon
   <button onclick="showTab('audit')" id="nb-audit">🔒 Audit</button>
   <button onclick="showTab('products')" id="nb-products">📦 Products</button>
   <button onclick="showTab('store')" id="nb-store">🏬 Store</button>
+  <button onclick="showTab('vpo')" id="nb-vpo">🏷 Vendor PO</button>
   <button onclick="showTab('dataeditor')" id="nb-dataeditor" class="pm-only">✏ Data Editor</button>
   <button onclick="showTab('exportcenter')" id="nb-exportcenter" class="pm-only">⬇ Export</button>
   <button onclick="showTab('settings')" id="nb-settings" class="pm-only">⚙ Settings</button>
@@ -1109,6 +1110,39 @@ tfoot td{font-weight:800;background:#f0f5f3;border-top:2px solid var(--teal);fon
 
 </div>
 
+<!-- ======= VENDOR PO (additive — purane code ko touch nahi karta) ======= -->
+<div id="tab-vpo" class="hide">
+  <div class="nav" id="vpoNav" style="top:0">
+    <button onclick="vpoTab('items')" id="nv-items" class="active">📋 Vendor Items</button>
+    <button onclick="vpoTab('po')" id="nv-po">🧾 PO Banao</button>
+  </div>
+
+  <div id="vpo-items">
+    <div class="card"><div class="card-head"><h2>📋 Vendor-wise Items</h2>
+      <select id="vpo_vend" onchange="vpoVendCh()" style="max-width:260px"><option value="">Vendor chuno...</option></select></div>
+      <div class="card-body">
+        <div id="vpo_meta" style="color:var(--ink3);font-size:13px;margin-bottom:8px"></div>
+        <div class="table-scroll"><table id="vpoItemsTable"></table></div>
+        <div style="font-size:12px;color:var(--ink3);margin-top:8px">Kis vendor se kya-kya samaan aata hai — pichhle purchase record se bana hua list.</div>
+      </div></div>
+  </div>
+
+  <div id="vpo-po" class="hide">
+    <div class="card"><div class="card-head"><h2>🧾 Purchase Order Banao</h2>
+      <select id="vpo_po_vend" onchange="vpoPoVendCh()" style="max-width:260px"><option value="">Vendor chuno...</option></select></div>
+      <div class="card-body">
+        <div id="vpo_po_list"></div>
+        <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
+          <button class="btn btn-primary" onclick="vpoMakePO()">🧾 PO Sheet Banao</button>
+        </div>
+      </div></div>
+    <div class="card hide" id="vpo_po_card"><div class="card-head"><h2>🧾 PO Preview</h2>
+      <button class="btn btn-primary btn-sm" onclick="vpoPrintPO()">🖨 Print / PDF</button></div>
+      <div class="card-body"><div id="vpo_po_view"></div></div></div>
+  </div>
+  <div id="vpoPrint" style="display:none"></div>
+</div>
+
 </main>
 </div>
 
@@ -1289,7 +1323,7 @@ function showTab(n){
   if(n==='daily')renderDaily();
   if(n==='monthly')renderMonthly();
   if(n==='audit')renderAudit();
-  if(n==='products')renderProducts();if(n==='store'){if(currentRole==='gm'&&(S_TAB==='issue'||S_TAB==='receipt'))S_TAB='dash';if(currentRole==='gm'&&['dept','issue','receipt','items'].includes(T_TAB))T_TAB='dash';if(!S_SYNCED){S_SYNCED=true;storePullCloud();}if(!T_SYNCED){T_SYNCED=true;statPullCloud();}renderStore();}
+  if(n==='products')renderProducts();if(n==='vpo')vpoRender();if(n==='store'){if(currentRole==='gm'&&(S_TAB==='issue'||S_TAB==='receipt'))S_TAB='dash';if(currentRole==='gm'&&['dept','issue','receipt','items'].includes(T_TAB))T_TAB='dash';if(!S_SYNCED){S_SYNCED=true;storePullCloud();}if(!T_SYNCED){T_SYNCED=true;statPullCloud();}renderStore();}
   if(n==='settings'){renderVendorProfiles();document.getElementById('totalEntries').textContent=DATA.length;document.getElementById('set_prop').value=SETS.prop;document.getElementById('set_tol').value=SETS.tol}
   if(n==='dataeditor'){renderDataEditor()}
 }
@@ -2423,11 +2457,11 @@ document.getElementById('dropZone').addEventListener('dragover',e=>e.preventDefa
 .srow:last-child{border-bottom:0}
 .smini{width:76px;padding:4px 6px;font-size:12px}
 @media(max-width:640px){.grid.g4{grid-template-columns:1fr 1fr}}
-#slipPrint,#reqPrint,#stockPrint,#tSlipPrint,#tStockPrint{display:none}
+#slipPrint,#reqPrint,#stockPrint,#tSlipPrint,#tStockPrint,#vpoPrint{display:none}
 @media print{
   body *{visibility:hidden !important;}
-  #slipPrint,#slipPrint *,#reqPrint,#reqPrint *,#stockPrint,#stockPrint *,#tSlipPrint,#tSlipPrint *,#tStockPrint,#tStockPrint *{visibility:visible !important;}
-  #slipPrint,#reqPrint,#stockPrint,#tSlipPrint,#tStockPrint{display:block !important;position:absolute;left:0;top:0;width:100%;padding:8px;}
+  #slipPrint,#slipPrint *,#reqPrint,#reqPrint *,#stockPrint,#stockPrint *,#tSlipPrint,#tSlipPrint *,#tStockPrint,#tStockPrint *,#vpoPrint,#vpoPrint *{visibility:visible !important;}
+  #slipPrint,#reqPrint,#stockPrint,#tSlipPrint,#tStockPrint,#vpoPrint{display:block !important;position:absolute;left:0;top:0;width:100%;padding:8px;}
 }
 </style>
 
@@ -3295,5 +3329,108 @@ function cloudSyncAll(){
 
 </script>
 
+<script>
+/* ======= VENDOR PO (additive — purane code ko touch nahi karta) ======= */
+let VPO_TAB='items', VPO_VEND='', VPO_PO_VEND='', VPO_PO=null;
+function vpoVendors(){return [...new Set(DATA.map(d=>d.vendor).filter(Boolean))].sort();}
+function vpoVendorItems(v){
+  const m={};
+  DATA.filter(d=>d.vendor===v&&d.item).forEach(d=>{
+    const k=d.item;
+    if(!m[k])m[k]={item:d.item,qty:0,lastRate:0,lastDate:''};
+    m[k].qty+=(+d.qty||0);
+    if((d.purchaseDate||'')>=m[k].lastDate){m[k].lastDate=d.purchaseDate||'';m[k].lastRate=+d.rate||0;}
+  });
+  return Object.values(m).sort((a,b)=>a.item.localeCompare(b.item));
+}
+function vpoFillSels(){
+  const vs=vpoVendors();
+  [['vpo_vend',VPO_VEND],['vpo_po_vend',VPO_PO_VEND]].forEach(([id,cur])=>{
+    const el=document.getElementById(id);if(!el)return;
+    el.innerHTML='<option value="">Vendor chuno...</option>'+vs.map(v=>'<option value="'+esc(v)+'"'+(v===cur?' selected':'')+'>'+esc(v)+'</option>').join('');
+  });
+}
+function vpoTab(t){
+  VPO_TAB=t;
+  document.getElementById('vpo-items').classList.toggle('hide',t!=='items');
+  document.getElementById('vpo-po').classList.toggle('hide',t!=='po');
+  document.getElementById('nv-items').classList.toggle('active',t==='items');
+  document.getElementById('nv-po').classList.toggle('active',t==='po');
+  vpoRender();
+}
+function vpoVendCh(){VPO_VEND=document.getElementById('vpo_vend').value;vpoRenderItems();}
+function vpoPoVendCh(){VPO_PO_VEND=document.getElementById('vpo_po_vend').value;vpoRenderPOForm();}
+function vpoRender(){
+  vpoFillSels();
+  document.getElementById('nv-items').classList.toggle('active',VPO_TAB==='items');
+  document.getElementById('nv-po').classList.toggle('active',VPO_TAB==='po');
+  if(VPO_TAB==='items')vpoRenderItems();else vpoRenderPOForm();
+}
+function vpoRenderItems(){
+  const t=document.getElementById('vpoItemsTable');
+  if(!VPO_VEND){t.innerHTML='';document.getElementById('vpo_meta').textContent='Vendor chuno — usse kya-kya samaan aata hai, yahan dikhega';return;}
+  const rows=vpoVendorItems(VPO_VEND);
+  document.getElementById('vpo_meta').textContent=rows.length+' items · '+VPO_VEND;
+  t.innerHTML='<tr><th>S.No</th><th>Item</th><th>Total Qty (ab tak)</th><th>Last Rate</th><th>Last Purchase</th></tr>'+
+    rows.map((r,i)=>'<tr><td>'+(i+1)+'</td><td><b>'+esc(r.item)+'</b></td><td>'+r.qty+'</td><td>'+(r.lastRate?inr(r.lastRate):'-')+'</td><td>'+(r.lastDate?fmtD(r.lastDate):'-')+'</td></tr>').join('');
+}
+function vpoRenderPOForm(){
+  const box=document.getElementById('vpo_po_list');
+  if(!VPO_PO_VEND){box.innerHTML='<div style="color:var(--ink3);font-size:13px">Vendor chuno — uske items ki list aa jayegi, tick karke qty likho</div>';return;}
+  const rows=vpoVendorItems(VPO_PO_VEND);
+  if(!rows.length){box.innerHTML='<div style="color:var(--ink3)">Is vendor ka koi item nahi mila</div>';return;}
+  box.innerHTML='<div style="margin-bottom:8px"><button class="btn btn-sm" onclick="vpoCheckAll(true)">Sab tick</button> <button class="btn btn-sm" onclick="vpoCheckAll(false)">Sab untick</button></div>'+
+    rows.map((r,i)=>'<div class="srow"><label style="flex:1;display:flex;gap:8px;align-items:center"><input type="checkbox" class="vpo_chk" data-i="'+i+'" style="width:18px;height:18px"><b>'+esc(r.item)+'</b><small style="color:var(--ink3)">last '+inr(r.lastRate||0)+'</small></label><input class="vpo_qty smini" data-i="'+i+'" type="number" min="0" placeholder="Qty" style="width:76px"><input class="vpo_rate smini" data-i="'+i+'" type="number" min="0" placeholder="Rate" value="'+(r.lastRate||'')+'" style="width:90px"></div>').join('')+
+    '<div style="font-size:12px;color:var(--ink3);margin-top:6px">Rate pichhle purchase se bhara hai — badal sakte ho</div>';
+  box._items=rows;
+}
+function vpoCheckAll(on){document.querySelectorAll('.vpo_chk').forEach(c=>c.checked=on);}
+function vpoCollectPOItems(){
+  const box=document.getElementById('vpo_po_list');const rows=box._items||[];
+  const items=[];
+  [...document.querySelectorAll('.vpo_chk')].forEach(c=>{
+    if(!c.checked)return;
+    const i=+c.dataset.i, r=rows[i];if(!r)return;
+    const qEl=document.querySelector('.vpo_qty[data-i="'+i+'"]');
+    const rEl=document.querySelector('.vpo_rate[data-i="'+i+'"]');
+    const qty=+(qEl&&qEl.value)||0;if(qty<=0)return;
+    const rate=+(rEl&&rEl.value)||0;
+    items.push({item:r.item,qty,rate});
+  });
+  return items;
+}
+function vpoBuildPO(vendor,hotel,date,items){
+  const lines=items.map(e=>({item:e.item,qty:e.qty,rate:e.rate,amt:Math.round(e.qty*e.rate*100)/100}));
+  return {no:'PO-'+date.split('-').join('')+'-'+String(Date.now()).slice(-4),date,vendor,hotel,
+    items:lines,total:Math.round(lines.reduce((a,e)=>a+e.amt,0)*100)/100};
+}
+function vpoMakePO(){
+  const items=vpoCollectPOItems();
+  if(!items.length){toast('Koi item tick karke qty nahi likhi',true);return;}
+  const d=today();
+  VPO_PO=vpoBuildPO(VPO_PO_VEND,(typeof SETS!=='undefined'&&SETS.prop)||'Ginger Jaipur, Ajmer Road',d,items);
+  document.getElementById('vpo_po_view').innerHTML=vpoPOSheet(VPO_PO);
+  document.getElementById('vpo_po_card').classList.remove('hide');
+  toast('✅ PO sheet taiyaar');
+}
+function vpoPOSheet(p){
+  const th='border:1px solid #000;padding:6px;background:#eee';
+  const td='border:1px solid #000;padding:6px';
+  return '<div style="text-align:center;margin-bottom:10px"><div style="font-size:18px;font-weight:800">'+esc(p.hotel)+'</div><div style="font-size:15px;font-weight:700;letter-spacing:1px">PURCHASE ORDER</div></div>'+
+  '<table style="width:100%;border-collapse:collapse;margin-bottom:10px"><tr><td style="'+td+'"><b>PO No:</b> '+esc(p.no)+'</td><td style="'+td+'"><b>Date:</b> '+fmtD(p.date)+'</td></tr>'+
+  '<tr><td style="'+td+'" colspan="2"><b>Vendor:</b> '+esc(p.vendor)+'</td></tr></table>'+
+  '<table style="width:100%;border-collapse:collapse"><tr><th style="'+th+'">S.No</th><th style="'+th+'">Item</th><th style="'+th+'">Qty</th><th style="'+th+'">Rate (Rs.)</th><th style="'+th+'">Amount (Rs.)</th></tr>'+
+  p.items.map((e,i)=>'<tr><td style="'+td+';text-align:center">'+(i+1)+'</td><td style="'+td+'">'+esc(e.item)+'</td><td style="'+td+';text-align:center">'+e.qty+'</td><td style="'+td+';text-align:right">'+e.rate+'</td><td style="'+td+';text-align:right">'+e.amt.toFixed(2)+'</td></tr>').join('')+
+  '<tr><td style="'+td+';text-align:right" colspan="4"><b>TOTAL</b></td><td style="'+td+';text-align:right"><b>Rs. '+p.total.toFixed(2)+'</b></td></tr></table>'+
+  '<div style="display:flex;justify-content:space-between;margin-top:36px;font-size:13px"><div>Prepared By<br><br>....................</div><div>Approved By<br><br>....................</div><div>Vendor Sign<br><br>....................</div></div>';
+}
+function vpoPrintPO(){
+  if(!VPO_PO){toast('Pehle PO sheet banao',true);return;}
+  ['slipPrint','reqPrint','stockPrint','tSlipPrint','tStockPrint'].forEach(id=>{const el=document.getElementById(id);if(el)el.innerHTML='';});
+  document.getElementById('vpoPrint').innerHTML=vpoPOSheet(VPO_PO);
+  window.print();
+}
+
+</script>
 </body>
 </html>
