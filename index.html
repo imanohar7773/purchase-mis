@@ -824,6 +824,7 @@ tfoot td{font-weight:800;background:#f0f5f3;border-top:2px solid var(--teal);fon
     <button onclick="showStoreTab('datewise')" id="ns-datewise">📅 Date-wise</button>
     <button onclick="showStoreTab('items')" id="ns-items">🗂 Items</button>
     <button onclick="showStoreTab('slip')" id="ns-slip">🧾 Slip</button>
+    <button onclick="showStoreTab('stationery')" id="ns-stationery">📎 Stationery</button>
   </div>
 
   <div id="st-dash">
@@ -919,9 +920,12 @@ tfoot td{font-weight:800;background:#f0f5f3;border-top:2px solid var(--teal);fon
   <div id="st-stock" class="hide">
     <div class="card"><div class="card-head"><h2>📦 Current Stock</h2>
       <select id="ss_cat" onchange="sRenderStock()" style="max-width:190px"></select>
-      <input id="ss_filter" placeholder="🔍 item dhoondho..." oninput="sRenderStock()" style="max-width:220px"></div>
+      <input id="ss_filter" placeholder="🔍 item dhoondho..." oninput="sRenderStock()" style="max-width:220px">
+      <button class="btn btn-primary btn-sm" onclick="sPrintStock()">🖨 Print</button>
+      <button class="btn btn-sm" onclick="sExportStock()">⬇ Excel</button></div>
       <div class="card-body"><div class="table-scroll"><table id="storeStockTable"></table></div></div></div>
   </div>
+  <div id="stockPrint" style="display:none"></div>
 
   <div id="st-datewise" class="hide">
     <div class="card"><div class="card-head"><h2>📅 Date-wise Issue (pichhle 30 din)</h2></div>
@@ -962,6 +966,124 @@ tfoot td{font-weight:800;background:#f0f5f3;border-top:2px solid var(--teal);fon
       </div></div>
   </div>
   <div id="slipPrint" style="display:none"></div>
+  <div id="st-stationery" class="hide">
+  <div class="nav" id="statNav" style="top:0;margin-bottom:10px">
+    <button onclick="showStatTab('dash')" id="nt-dash">🏠 Home</button>
+    <button onclick="showStatTab('dept')" id="nt-dept" class="pm-only">👥 Dept Issue</button>
+    <button onclick="showStatTab('issue')" id="nt-issue" class="pm-only">📝 Single Issue</button>
+    <button onclick="showStatTab('receipt')" id="nt-receipt" class="pm-only">📥 Receipt</button>
+    <button onclick="showStatTab('stock')" id="nt-stock">📦 Stock</button>
+    <button onclick="showStatTab('items')" id="nt-items" class="pm-only">🗂 Items</button>
+    <button onclick="showStatTab('slip')" id="nt-slip">🧾 Slip</button>
+  </div>
+
+  <div id="ty-dash">
+    <div class="grid g3" id="statKpis" style="margin-bottom:12px"></div>
+    <div class="card pm-only" style="margin-bottom:12px"><div class="card-body" style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+      <div style="flex:1;min-width:200px"><b>👥 Department ko issue karo</b><br><span style="font-size:13px;color:var(--ink3)">Department chuno → har item ke aage qty + remark likho → ek tap me sab issue</span></div>
+      <button class="btn btn-primary" onclick="showStatTab('dept')">👥 Dept Issue kholo</button>
+    </div></div>
+    <div class="grid g2">
+      <div class="card"><div class="card-head"><h2>⚠ Low / Out of Stock</h2></div>
+        <div class="card-body"><div id="statLowList"></div></div></div>
+      <div class="card"><div class="card-head"><h2>🕒 Aaj ke issues</h2></div>
+        <div class="card-body"><div id="statTodayList"></div></div></div>
+    </div>
+  </div>
+
+  <div id="ty-dept" class="hide">
+    <div class="card"><div class="card-head"><h2>👥 Department Issue — ek department ko kai items ek saath</h2></div>
+      <div class="card-body">
+        <div style="font-size:13px;color:var(--ink3);margin-bottom:6px">Department chuno:</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px" id="tDeptBtns"></div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px;align-items:end">
+          <div><label class="lbl">Date</label><input type="date" id="td_date" style="max-width:170px"></div>
+          <div style="flex:1;min-width:150px"><label class="lbl">Received By</label><input id="td_recv" placeholder="naam (optional)"></div>
+          <div style="flex:1;min-width:170px"><label class="lbl">Search</label><input id="td_q" placeholder="🔍 item dhoondho..." oninput="tRenderDept()"></div>
+        </div>
+        <div id="td_list" style="border:1px solid var(--line);border-radius:10px;max-height:360px;overflow:auto;padding:0 10px"></div>
+        <div style="margin-top:10px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+          <button class="btn btn-primary" id="td_issuebtn" onclick="tSaveDeptIssue()">✅ Sab Issue Karo</button>
+          <span style="font-size:12px;color:var(--ink3)">Qty me <b>Enter</b> → agle item ki qty · Remark me <b>Enter</b> → agla remark</span>
+        </div>
+      </div></div>
+  </div>
+
+  <div id="ty-issue" class="hide">
+    <div class="card pm-only"><div class="card-head"><h2>📝 Single Issue — ek item, ek department</h2></div>
+      <div class="card-body">
+        <div class="grid g3">
+          <div style="position:relative"><label class="lbl">Item</label>
+            <input id="ti_item" placeholder="🔍 item search karo..." autocomplete="off" oninput="tSuggest('ti_item','ti_sugg','ti_code')">
+            <input type="hidden" id="ti_code"><div id="ti_sugg" class="sugg hide"></div></div>
+          <div><label class="lbl">Department</label><select id="ti_dept"></select></div>
+          <div><label class="lbl">Date</label><input type="date" id="ti_date"></div>
+          <div><label class="lbl">Qty</label><input type="number" id="ti_qty" min="1" placeholder="0"></div>
+          <div><label class="lbl">Received By</label><input id="ti_recv" placeholder="naam (optional)"></div>
+          <div><label class="lbl">Remark</label><input id="ti_rem" placeholder="remark (optional)"></div>
+        </div>
+        <div style="margin-top:10px"><button class="btn btn-primary" onclick="tSaveIssue()">✅ Issue Karo</button></div>
+      </div></div>
+    <div class="card"><div class="card-head"><h2>🕒 Recent issues</h2></div>
+      <div class="card-body"><div class="table-scroll"><table id="statIssueTable"></table></div></div></div>
+  </div>
+
+  <div id="ty-receipt" class="hide">
+    <div class="card pm-only"><div class="card-head"><h2>📥 Receipt — stock me samaan aaya</h2></div>
+      <div class="card-body">
+        <div class="grid g3">
+          <div style="position:relative"><label class="lbl">Item</label>
+            <input id="tr_item" placeholder="🔍 item search karo..." autocomplete="off" oninput="tSuggest('tr_item','tr_sugg','tr_code')">
+            <input type="hidden" id="tr_code"><div id="tr_sugg" class="sugg hide"></div></div>
+          <div><label class="lbl">Date</label><input type="date" id="tr_date"></div>
+          <div><label class="lbl">Qty</label><input type="number" id="tr_qty" min="1" placeholder="0"></div>
+          <div style="grid-column:span 2"><label class="lbl">Remark</label><input id="tr_rem" placeholder="bill no / vendor / remark"></div>
+        </div>
+        <div style="margin-top:10px"><button class="btn btn-primary" onclick="tSaveReceipt()">✅ Receipt Save Karo</button></div>
+      </div></div>
+    <div class="card"><div class="card-head"><h2>🕒 Recent receipts</h2></div>
+      <div class="card-body"><div class="table-scroll"><table id="statReceiptTable"></table></div></div></div>
+  </div>
+
+  <div id="ty-stock" class="hide">
+    <div class="card"><div class="card-head"><h2>📦 Stationery Stock <span style="font-size:12px;color:var(--ink3)">(Opening: 10-Jan-2026)</span></h2>
+      <input id="ty_filter" placeholder="🔍 item dhoondho..." oninput="tRenderStock()" style="max-width:220px">
+      <button class="btn btn-primary btn-sm" onclick="tPrintStock()">🖨 Print</button>
+      <button class="btn btn-sm" onclick="tExportStock()">⬇ Excel</button></div>
+      <div class="card-body"><div class="table-scroll"><table id="statStockTable"></table></div></div></div>
+  </div>
+  <div id="tStockPrint" style="display:none"></div>
+
+  <div id="ty-items" class="hide">
+    <div class="card pm-only"><div class="card-head"><h2>➕ Naya item add karo</h2></div>
+      <div class="card-body">
+        <div class="grid g3">
+          <div style="grid-column:span 2"><label class="lbl">Item naam</label><input id="ta_name" placeholder="jaise: Stapler Pins"></div>
+          <div><label class="lbl">UOM</label><input id="ta_uom" placeholder="Pcs" value="Pcs"></div>
+          <div><label class="lbl">Opening qty</label><input type="number" id="ta_opening" placeholder="0"></div>
+          <div><label class="lbl">Re-order level</label><input type="number" id="ta_reorder" placeholder="optional"></div>
+        </div>
+        <div style="margin-top:10px"><button class="btn btn-primary" onclick="tAddItem()">➕ Add Karo</button></div>
+      </div></div>
+    <div class="card"><div class="card-head"><h2>🗂 Item Master (<span id="tm_count"></span>)</h2>
+      <input id="tm_filter" placeholder="🔍 item dhoondho..." oninput="tRenderItems()" style="max-width:220px"></div>
+      <div class="card-body"><div class="table-scroll"><table id="statItemsTable"></table></div></div></div>
+  </div>
+
+  <div id="ty-slip" class="hide">
+    <div class="card"><div class="card-head"><h2>🧾 Daily Issue Summary — Stationery</h2>
+      <input type="date" id="ty_slip_date" onchange="tRenderSlip()" style="max-width:170px">
+      <select id="ty_slip_dept" onchange="tRenderSlip()" style="max-width:200px"></select>
+      <button class="btn btn-primary btn-sm" onclick="tPrintSlip()">🖨 Print / PDF</button></div>
+      <div class="card-body">
+        <div id="ty_slip_meta" style="color:var(--ink3);font-size:13px;margin-bottom:8px"></div>
+        <div class="table-scroll"><table id="statSlipView"></table></div>
+        <div style="font-size:12px;color:var(--ink3);margin-top:8px">Print dabao → PDF save ya printer par nikaalo. Sign karke file me rakho.</div>
+      </div></div>
+  </div>
+  <div id="tSlipPrint" style="display:none"></div>
+  </div>
+
 </div>
 
 </main>
@@ -1144,7 +1266,7 @@ function showTab(n){
   if(n==='daily')renderDaily();
   if(n==='monthly')renderMonthly();
   if(n==='audit')renderAudit();
-  if(n==='products')renderProducts();if(n==='store'){if(currentRole==='gm'&&(S_TAB==='issue'||S_TAB==='receipt'))S_TAB='dash';if(!S_SYNCED){S_SYNCED=true;storePullCloud();}renderStore();}
+  if(n==='products')renderProducts();if(n==='store'){if(currentRole==='gm'&&(S_TAB==='issue'||S_TAB==='receipt'))S_TAB='dash';if(currentRole==='gm'&&['dept','issue','receipt','items'].includes(T_TAB))T_TAB='dash';if(!S_SYNCED){S_SYNCED=true;storePullCloud();}if(!T_SYNCED){T_SYNCED=true;statPullCloud();}renderStore();}
   if(n==='settings'){renderVendorProfiles();document.getElementById('totalEntries').textContent=DATA.length;document.getElementById('set_prop').value=SETS.prop;document.getElementById('set_tol').value=SETS.tol}
   if(n==='dataeditor'){renderDataEditor()}
 }
@@ -2278,11 +2400,11 @@ document.getElementById('dropZone').addEventListener('dragover',e=>e.preventDefa
 .srow:last-child{border-bottom:0}
 .smini{width:76px;padding:4px 6px;font-size:12px}
 @media(max-width:640px){.grid.g4{grid-template-columns:1fr 1fr}}
-#slipPrint,#reqPrint{display:none}
+#slipPrint,#reqPrint,#stockPrint,#tSlipPrint,#tStockPrint{display:none}
 @media print{
   body *{visibility:hidden !important;}
-  #slipPrint,#slipPrint *,#reqPrint,#reqPrint *{visibility:visible !important;}
-  #slipPrint,#reqPrint{display:block !important;position:absolute;left:0;top:0;width:100%;padding:8px;}
+  #slipPrint,#slipPrint *,#reqPrint,#reqPrint *,#stockPrint,#stockPrint *,#tSlipPrint,#tSlipPrint *,#tStockPrint,#tStockPrint *{visibility:visible !important;}
+  #slipPrint,#reqPrint,#stockPrint,#tSlipPrint,#tStockPrint{display:block !important;position:absolute;left:0;top:0;width:100%;padding:8px;}
 }
 </style>
 
@@ -2348,8 +2470,8 @@ function sCurrent(c){const it=sItem(c);return (it?(+it.opening||0):0)+sReceived(
 function sStatus(c){const cur=sCurrent(c);if(cur<=0)return 'OUT';const it=sItem(c);const ro=+((it&&it.reorder)||0);if(ro>0&&cur<=ro)return 'LOW';return 'OK';}
 function sPill(st){return st==='OUT'?'<span class="st-out">OUT OF STOCK</span>':st==='LOW'?'<span class="st-low">LOW STOCK</span>':'<span class="st-ok">OK</span>';}
 /* ---- sub tabs ---- */
-function showStoreTab(t){S_TAB=t;['dash','issue','receipt','stock','datewise','items','multi','slip'].forEach(x=>document.getElementById('st-'+x).classList.add('hide'));document.getElementById('st-'+t).classList.remove('hide');document.querySelectorAll('#storeNav button').forEach(b=>b.classList.remove('active'));const nb=document.getElementById('ns-'+t);if(nb)nb.classList.add('active');renderStore();}
-function renderStore(){if(S_TAB==='dash')sRenderDash();else if(S_TAB==='issue')sRenderIssue();else if(S_TAB==='receipt')sRenderReceipt();else if(S_TAB==='stock')sRenderStock();else if(S_TAB==='datewise')sRenderDatewise();else if(S_TAB==='multi')sRenderMulti();else if(S_TAB==='slip')sRenderSlip();
+function showStoreTab(t){S_TAB=t;['dash','issue','receipt','stock','datewise','items','multi','slip','stationery'].forEach(x=>document.getElementById('st-'+x).classList.add('hide'));document.getElementById('st-'+t).classList.remove('hide');document.querySelectorAll('#storeNav button').forEach(b=>b.classList.remove('active'));const nb=document.getElementById('ns-'+t);if(nb)nb.classList.add('active');renderStore();}
+function renderStore(){if(S_TAB==='dash')sRenderDash();else if(S_TAB==='issue')sRenderIssue();else if(S_TAB==='receipt')sRenderReceipt();else if(S_TAB==='stock')sRenderStock();else if(S_TAB==='datewise')sRenderDatewise();else if(S_TAB==='multi')sRenderMulti();else if(S_TAB==='slip')sRenderSlip();else if(S_TAB==='stationery')renderStat();
 else if(S_TAB==='items'){const pmc=currentRole==='pm';['sb_bulkcard','sb_catcard'].forEach(id=>{const el=document.getElementById(id);if(el)el.style.display=pmc?'':'none';});sFillCatSel('sb_cat',false);sRenderCatList();sRenderItems();}}
 /* ---- search-as-you-type ---- */
 function sSuggest(inpId,suggId,codeId){
@@ -2406,6 +2528,58 @@ function sRenderIssue(){
   const pm2=currentRole==='pm';
   document.getElementById('storeIssueTable').innerHTML='<tr><th>Date</th><th>Item</th><th>Qty</th><th>Dept</th>'+(pm2?'<th></th>':'')+'</tr>'+
     (rows.map(e=>{const it=sItem(e.code);return `<tr><td>${fmtD(e.date)}</td><td>${esc(it?it.name:e.code)}<br><small style="color:var(--ink3)">${e.code}</small></td><td><b>${e.qty}</b></td><td>${esc(e.dept||'')}</td>${pm2?`<td><button class="btn btn-ghost btn-sm" onclick="sDelIssue('${e.id}')">🗑</button></td>`:''}</tr>`;}).join('')||'<tr><td colspan="5" style="color:var(--ink3)">Koi entry nahi</td></tr>');
+}
+/* ---- stock excel export ---- */
+function sStockCSV(){
+  const rows=sStockRows();
+  const q=v=>'"'+String(v==null?'':v).replace(/"/g,'""')+'"';
+  const lines=[['Code','Item','UOM','Category','Opening','Received','Issued','Current','Status','Expiry'].map(q).join(',')];
+  rows.forEach(it=>{lines.push([it.code,it.name,it.uom||'',it.cat||'',it.opening||0,sReceived(it.code),sIssued(it.code),sCurrent(it.code),sStatus(it.code),it.expiry||''].map(q).join(','));});
+  return '\uFEFF'+lines.join('\r\n');
+}
+function sExportStock(){
+  try{
+    const blob=new Blob([sStockCSV()],{type:'text/csv;charset=utf-8'});
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(blob);
+    a.download='Ginger_Store_Stock_'+today()+'.csv';
+    document.body.appendChild(a);a.click();
+    setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},800);
+    toast('✅ Excel file download ho gayi');
+  }catch(e){toast('Download me dikkat aayi',true);}
+}
+/* ---- stock print ---- */
+function sStockRows(){
+  const q=(document.getElementById('ss_filter').value||'').trim().toLowerCase();
+  const cf=document.getElementById('ss_cat').value;
+  return S_ITEMS.filter(i=>(!cf||i.cat===cf)&&(!q||i.name.toLowerCase().includes(q)||i.code.toLowerCase().includes(q)));
+}
+function sPrintStock(){
+  ['slipPrint','reqPrint','tSlipPrint','tStockPrint'].forEach(id=>{const el=document.getElementById(id);if(el)el.innerHTML='';});
+  const rows=sStockRows();
+  const th='border:1px solid #000;padding:5px;background:#eee;font-size:11px';
+  const td='border:1px solid #000;padding:5px;font-size:11px';
+  const body=rows.map((it,i)=>{const cur=sCurrent(it.code);
+    return `<tr><td style="${td};text-align:center">${i+1}</td><td style="${td}">${it.code}</td><td style="${td}">${esc(it.name)}</td><td style="${td};text-align:center">${esc(it.uom||'-')}</td><td style="${td};text-align:center">${it.opening||0}</td><td style="${td};text-align:center">${sReceived(it.code)}</td><td style="${td};text-align:center">${sIssued(it.code)}</td><td style="${td};text-align:center"><b>${cur}</b></td><td style="${td};text-align:center">${sStatus(it.code)}</td></tr>`;}).join('');
+  const totCur=rows.reduce((t,it)=>t+sCurrent(it.code),0);
+  document.getElementById('stockPrint').innerHTML=
+  `<div style="font-family:Arial,Helvetica,sans-serif;color:#000;padding:6px">
+    <div style="text-align:center;border-bottom:2px solid #000;padding-bottom:8px;margin-bottom:10px">
+      <div style="font-size:20px;font-weight:800">GINGER JAIPUR — AJMER ROAD</div>
+      <div style="font-size:14px;margin-top:2px">Store — Current Stock Report</div>
+      <div style="font-size:13px;margin-top:2px">Date: ${fmtD(today())}${rows.length!==S_ITEMS.length?' · Filtered: '+rows.length+' of '+S_ITEMS.length+' items':''}</div>
+    </div>
+    <table style="width:100%;border-collapse:collapse">
+      <tr><th style="${th}">S.No</th><th style="${th}">Code</th><th style="${th}">Item</th><th style="${th}">UOM</th><th style="${th}">Opening</th><th style="${th}">Received</th><th style="${th}">Issued</th><th style="${th}">Current</th><th style="${th}">Status</th></tr>
+      ${body}
+      <tr><td colspan="7" style="${td};text-align:right"><b>Total</b></td><td style="${td};text-align:center"><b>${totCur}</b></td><td style="${td};text-align:center"><b>${rows.length} items</b></td></tr>
+    </table>
+    <div style="display:flex;justify-content:space-between;margin-top:44px;font-size:13px">
+      <div style="text-align:center">Prepared By<br><br>........................</div>
+      <div style="text-align:center">Checked By<br><br>........................</div>
+    </div>
+  </div>`;
+  setTimeout(()=>window.print(),60);
 }
 /* ---- requirement (mangwana) list ---- */
 const STORE_REQS_KEY='ginger_store_reqs_v1';
@@ -2493,7 +2667,7 @@ function sReqSave(){
 function sReqDel(id){if(!confirm('Ye list delete karein?'))return;S_REQS=S_REQS.filter(r=>r.id!==id);reqSaveLocal();fbCol('deleteFromCol','pm_store_reqs',id);sRenderReq();}
 function sPrintReq(id){
   const r=S_REQS.find(x=>x.id===id);if(!r)return;
-  document.getElementById('slipPrint').innerHTML='';
+  ['slipPrint','stockPrint','tSlipPrint','tStockPrint'].forEach(id=>{const el=document.getElementById(id);if(el)el.innerHTML='';});
   const th='border:1px solid #000;padding:6px;background:#eee';
   const rows=r.items.map((x,i)=>{const it=sItem(x.code);
     return `<tr><td style="border:1px solid #000;padding:6px;text-align:center">${i+1}</td><td style="border:1px solid #000;padding:6px">${esc(it?it.name:x.code)}</td><td style="border:1px solid #000;padding:6px;text-align:center">${sCurrent(x.code)}</td><td style="border:1px solid #000;padding:6px;text-align:center"><b>${x.qty}</b></td></tr>`;}).join('');
@@ -2548,7 +2722,7 @@ function sRenderSlip(){
     </div>
   </div>`;
 }
-function sPrintSlip(){document.getElementById('reqPrint').innerHTML='';sRenderSlip();setTimeout(()=>window.print(),60);}
+function sPrintSlip(){['reqPrint','stockPrint','tSlipPrint','tStockPrint'].forEach(id=>{const el=document.getElementById(id);if(el)el.innerHTML='';});sRenderSlip();setTimeout(()=>window.print(),60);}
 /* ---- multi issue ---- */
 let S_BATCH=[];let S_BATCHMODE=false;
 function sOpenMulti(){if(currentRole!=='pm'){toast('Sirf PM issue kar sakta hai',true);return;}S_BATCH=[];S_BATCHMODE=false;showStoreTab('multi');}
@@ -2674,6 +2848,332 @@ function sRenderItems(){
        :`<td>${esc(it.uom||'-')}</td><td>${esc(String(it.reorder||'-'))}</td>`)+
     `<td>${it.expiry?fmtD(it.expiry):'-'}</td></tr>`).join('');
 }
+// ======= STATIONERY MODULE (appended) =======
+/* ================= STATIONERY MODULE (Ginger Stationery · opening 10-Jan-2026) ================= */
+const STAT_ITEMS_KEY='ginger_stat_items_v1';
+const STAT_ISSUES_KEY='ginger_stat_issues_v1';
+const STAT_RECEIPTS_KEY='ginger_stat_receipts_v1';
+const STAT_OPENING_LABEL='10-Jan-2026';
+const T_DEPTS=['Front Office','Housekeeping','Security','Food & Beverage','Maintenance (Eng.)'];
+const STAT_SEED=[
+{code:'ST-001',name:'Complaint Book',uom:'Pcs',opening:11,reorder:'',expiry:'',loc:''},
+{code:'ST-002',name:'Visitor Register',uom:'Pcs',opening:9,reorder:'',expiry:'',loc:''},
+{code:'ST-003',name:'Delhi Conjunction Report',uom:'Pcs',opening:3,reorder:'',expiry:'',loc:''},
+{code:'ST-004',name:'Borewell Water Meter Consumption',uom:'Pcs',opening:4,reorder:'',expiry:'',loc:''},
+{code:'ST-005',name:'Laundry Guest Register',uom:'Pcs',opening:6,reorder:'',expiry:'',loc:''},
+{code:'ST-006',name:'Daily Water Test / Consumption Report',uom:'Pcs',opening:3,reorder:'',expiry:'',loc:''},
+{code:'ST-007',name:'Staff Attendance Register',uom:'Pcs',opening:3,reorder:'',expiry:'',loc:''},
+{code:'ST-008',name:'Material Inward / Document Inward',uom:'Pcs',opening:3,reorder:'',expiry:'',loc:''},
+{code:'ST-009',name:"Employee's Gate Pass (Ginger Agra)",uom:'Pcs',opening:4,reorder:'',expiry:'',loc:''},
+{code:'ST-010',name:'Laundry Rate List',uom:'Pcs',opening:11,reorder:'',expiry:'',loc:''},
+{code:'ST-011',name:'Engineering Desk Log Book',uom:'Pcs',opening:4,reorder:'',expiry:'',loc:''},
+{code:'ST-012',name:'DG Daily Log Book',uom:'Pcs',opening:3,reorder:'',expiry:'',loc:''},
+{code:'ST-013',name:'Returnable Gate Pass Register',uom:'Pcs',opening:3,reorder:'',expiry:'',loc:''},
+{code:'ST-014',name:'Engineer Book',uom:'Pcs',opening:3,reorder:'',expiry:'',loc:''},
+{code:'ST-015',name:'ANNEXURE-II — For Keeping Place of Public Entertainment',uom:'Pcs',opening:3,reorder:'',expiry:'',loc:''},
+{code:'ST-016',name:'Non-Returnable Item Gate Pass',uom:'Pcs',opening:4,reorder:'',expiry:'',loc:''},
+{code:'ST-017',name:'Returnable Item Gate Pass',uom:'Pcs',opening:3,reorder:'',expiry:'',loc:''},
+{code:'ST-018',name:'Lost and Found',uom:'Pcs',opening:6,reorder:'',expiry:'',loc:''},
+{code:'ST-019',name:"Laundry Contractor's Gate Pass — Room Linen",uom:'Pcs',opening:8,reorder:'',expiry:'',loc:''},
+{code:'ST-020',name:'Front Office Cash Handover',uom:'Pcs',opening:8,reorder:'',expiry:'',loc:''},
+{code:'ST-021',name:'Non-Returnable Gate Pass Register',uom:'Pcs',opening:4,reorder:'',expiry:'',loc:''},
+{code:'ST-022',name:'Vehicle Register',uom:'Pcs',opening:5,reorder:'',expiry:'',loc:''},
+{code:'ST-023',name:'Control Register',uom:'Pcs',opening:5,reorder:'',expiry:'',loc:''},
+{code:'ST-024',name:'Notebook',uom:'Pcs',opening:3,reorder:'',expiry:'',loc:''},
+{code:'ST-025',name:'Extra Mattress Register',uom:'Pcs',opening:3,reorder:'',expiry:'',loc:''},
+{code:'ST-026',name:'Ginger Mart Register',uom:'Pcs',opening:3,reorder:'',expiry:'',loc:''},
+{code:'ST-027',name:'IRD & F&B Errand Book',uom:'Pcs',opening:5,reorder:'',expiry:'',loc:''},
+{code:'ST-028',name:'Beverage Inventory',uom:'Pcs',opening:4,reorder:'',expiry:'',loc:''},
+{code:'ST-029',name:'CCG Inventory',uom:'Pcs',opening:3,reorder:'',expiry:'',loc:''},
+{code:'ST-030',name:'Bill Handover Record to F&B',uom:'Pcs',opening:4,reorder:'',expiry:'',loc:''},
+{code:'ST-031',name:'Daily Engineering Report',uom:'Pcs',opening:5,reorder:'',expiry:'',loc:''},
+{code:'ST-032',name:'Staff Shoes — Size 7',uom:'Pair',opening:5,reorder:'',expiry:'',loc:''},
+{code:'ST-033',name:'Staff Shoes — Size 6',uom:'Pair',opening:2,reorder:'',expiry:'',loc:''},
+{code:'ST-034',name:'Staff Shoes — Size 8',uom:'Pair',opening:2,reorder:'',expiry:'',loc:''}
+];
+let T_ITEMS=loadJSON(STAT_ITEMS_KEY,null);
+let T_ISSUES=loadJSON(STAT_ISSUES_KEY,[]);
+let T_RECEIPTS=loadJSON(STAT_RECEIPTS_KEY,[]);
+if(!T_ITEMS||!T_ITEMS.length){T_ITEMS=STAT_SEED.map(o=>({...o}));saveJSON(STAT_ITEMS_KEY,T_ITEMS);}
+let T_TAB='dash', T_SYNCED=false, T_DEPT=T_DEPTS[0];
+
+function statSaveLocal(){saveJSON(STAT_ITEMS_KEY,T_ITEMS);saveJSON(STAT_ISSUES_KEY,T_ISSUES);saveJSON(STAT_RECEIPTS_KEY,T_RECEIPTS);}
+function statSaveAll(){statSaveLocal();}
+async function statPullCloud(){
+  if(!window._fbReady||!window._fb||!window._fb.loadCol)return;
+  try{
+    const [ci,ii,ri]=await Promise.all([window._fb.loadCol('pm_stat_items'),window._fb.loadCol('pm_stat_issues'),window._fb.loadCol('pm_stat_receipts')]);
+    let ch=false;
+    if(ci&&ci.length>=T_ITEMS.length&&ci.length){T_ITEMS=ci;ch=true;}
+    if(ii&&ii.length>=T_ISSUES.length){T_ISSUES=ii;ch=true;}
+    if(ri&&ri.length>=T_RECEIPTS.length){T_RECEIPTS=ri;ch=true;}
+    if(ch){statSaveLocal();renderStat();toast('☁ Stationery cloud se sync ho gaya');}
+  }catch(e){}
+}
+/* ---- calcs ---- */
+const tItem=c=>T_ITEMS.find(i=>i.code===c);
+const tIssued=c=>T_ISSUES.filter(e=>e.code===c).reduce((a,e)=>a+(+e.qty||0),0);
+const tReceived=c=>T_RECEIPTS.filter(e=>e.code===c).reduce((a,e)=>a+(+e.qty||0),0);
+function tCurrent(c){const it=tItem(c);return (it?(+it.opening||0):0)+tReceived(c)-tIssued(c);}
+function tStatus(c){const cur=tCurrent(c);if(cur<=0)return 'OUT';const it=tItem(c);const ro=+((it&&it.reorder)||0);if(ro>0&&cur<=ro)return 'LOW';return 'OK';}
+function tPill(st){return st==='OUT'?'<span class="st-out">OUT OF STOCK</span>':st==='LOW'?'<span class="st-low">LOW STOCK</span>':'<span class="st-ok">OK</span>';}
+/* ---- sub tabs ---- */
+function showStatTab(t){
+  const pm=currentRole==='pm';
+  if(!pm&&['dept','issue','receipt','items'].includes(t))t='dash';
+  T_TAB=t;
+  ['dash','dept','issue','receipt','stock','items','slip'].forEach(x=>document.getElementById('ty-'+x).classList.add('hide'));
+  document.getElementById('ty-'+t).classList.remove('hide');
+  document.querySelectorAll('#statNav button').forEach(b=>b.classList.remove('active'));
+  const nb=document.getElementById('nt-'+t);if(nb)nb.classList.add('active');
+  renderStat();
+}
+function renderStat(){
+  if(T_TAB==='dash')tRenderDash();
+  else if(T_TAB==='dept'){tRenderDeptBtns();tRenderDept();}
+  else if(T_TAB==='issue')tRenderIssue();
+  else if(T_TAB==='receipt')tRenderReceipt();
+  else if(T_TAB==='stock')tRenderStock();
+  else if(T_TAB==='items')tRenderItems();
+  else if(T_TAB==='slip')tRenderSlip();
+}
+/* ---- dashboard ---- */
+function tRenderDash(){
+  const totQty=T_ITEMS.reduce((a,it)=>a+tCurrent(it.code),0);
+  const td=today();
+  const tIssues=T_ISSUES.filter(e=>e.date===td);
+  const outN=T_ITEMS.filter(it=>tStatus(it.code)==='OUT').length;
+  document.getElementById('statKpis').innerHTML=
+    `<div class="card"><div class="card-body" style="text-align:center"><div style="font-size:26px;font-weight:800">${T_ITEMS.length}</div><div style="font-size:12px;color:var(--ink3)">Total items</div></div></div>`+
+    `<div class="card"><div class="card-body" style="text-align:center"><div style="font-size:26px;font-weight:800">${totQty}</div><div style="font-size:12px;color:var(--ink3)">Total stock qty</div></div></div>`+
+    `<div class="card"><div class="card-body" style="text-align:center"><div style="font-size:26px;font-weight:800">${tIssues.length}</div><div style="font-size:12px;color:var(--ink3)">Aaj ke issues</div></div></div>`;
+  const low=T_ITEMS.filter(it=>tStatus(it.code)!=='OK');
+  document.getElementById('statLowList').innerHTML=low.length?low.map(it=>`<div class="srow"><span><b>${esc(it.name)}</b> <small style="color:var(--ink3)">${it.code}</small></span>${tPill(tStatus(it.code))}</div>`).join(''):'<span style="color:var(--ink3)">Sab OK hai</span>';
+  document.getElementById('statTodayList').innerHTML=tIssues.length?tIssues.slice().reverse().map(e=>{const it=tItem(e.code)||{};return `<div class="srow"><span><b>${esc(it.name||e.code)}</b><br><small style="color:var(--ink3)">${esc(e.dept||'')} · ${e.qty}${it.uom?' '+esc(it.uom):''}${e.remarks?' · <i>'+esc(e.remarks)+'</i>':''}</small></span><span style="font-size:12px;color:var(--ink3)">${esc(e.recv||'')}</span></div>`;}).join(''):'<span style="color:var(--ink3)">Aaj koi issue nahi</span>';
+}
+/* ---- department-first multi issue ---- */
+function tRenderDeptBtns(){
+  document.getElementById('tDeptBtns').innerHTML=T_DEPTS.map(d=>`<button class="btn ${d===T_DEPT?'btn-primary':''}" onclick="T_DEPT='${d.replace(/'/g,"\\'")}';tRenderDeptBtns();tRenderDept()">${esc(d)}</button>`).join('');
+}
+function tDeptRows(){
+  const q=(document.getElementById('td_q').value||'').trim().toLowerCase();
+  return T_ITEMS.filter(i=>!q||i.name.toLowerCase().includes(q)||i.code.toLowerCase().includes(q));
+}
+function tRenderDept(){
+  const dd=document.getElementById('td_date');if(dd&&!dd.value)dd.value=today();
+  const rows=tDeptRows();
+  document.getElementById('td_list').innerHTML=rows.length?rows.map(it=>{
+    const cur=tCurrent(it.code),st=tStatus(it.code),dis=cur<=0;
+    return `<div style="padding:9px 0;border-bottom:1px solid #f0f0f0">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+        <div><b>${esc(it.name)}</b> <small style="color:var(--ink3)">${it.code}</small></div>
+        <span style="font-size:12px">${tPill(st)} <b>${cur}</b>${it.uom?' '+esc(it.uom):''}</span>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:6px">
+        <input type="number" class="td_qty" data-code="${it.code}" placeholder="Qty" min="0" ${dis?'disabled':''} style="width:96px" onkeydown="tQtyKey(event,this)">
+        <input class="td_rem" data-code="${it.code}" placeholder="Remark (optional)" ${dis?'disabled':''} style="flex:1;min-width:120px" onkeydown="tRemKey(event,this)">
+      </div>
+    </div>`;}).join(''):'<div style="padding:12px;color:var(--ink3)">Koi item nahi mila</div>';
+}
+function tQtyKey(e,el){if(e.key==='Enter'){e.preventDefault();const q=[...document.querySelectorAll('.td_qty')].filter(x=>!x.disabled);const i=q.indexOf(el);if(i<q.length-1)q[i+1].focus();else document.getElementById('td_issuebtn').focus();}}
+function tRemKey(e,el){if(e.key==='Enter'){e.preventDefault();const q=[...document.querySelectorAll('.td_rem')].filter(x=>!x.disabled);const i=q.indexOf(el);if(i<q.length-1)q[i+1].focus();else document.getElementById('td_issuebtn').focus();}}
+function tSaveDeptIssue(){
+  const date=document.getElementById('td_date').value||today();
+  const recv=(document.getElementById('td_recv').value||'').trim();
+  const qtys=[...document.querySelectorAll('.td_qty')];
+  let n=0,tot=0;const bad=[];
+  qtys.forEach(inp=>{
+    const code=inp.dataset.code,qty=+inp.value||0;
+    if(qty<=0)return;
+    const remEl=document.querySelector('.td_rem[data-code="'+code+'"]');
+    const rem=remEl?(remEl.value||'').trim():'';
+    const cur=tCurrent(code);
+    if(qty>cur){bad.push(((tItem(code)||{}).name||code)+' (stock '+cur+')');return;}
+    const e={id:uid(),date,code,qty,dept:T_DEPT,recv,remarks:rem,ts:Date.now()};
+    T_ISSUES.push(e);fbCol('saveToCol','pm_stat_issues',e.id,e);n++;tot+=qty;
+  });
+  if(bad.length){toast('Stock se zyada: '+bad.join(', '),true);return;}
+  if(!n){toast('Koi qty nahi likhi',true);return;}
+  statSaveLocal();renderStat();
+  toast('✅ '+n+' items → '+T_DEPT+' ('+tot+' qty)');
+}
+/* ---- search-as-you-type ---- */
+function tSuggest(inpId,suggId,codeId){
+  const q=document.getElementById(inpId).value.trim().toLowerCase();
+  const box=document.getElementById(suggId);
+  document.getElementById(codeId).value='';
+  if(q.length<1){box.classList.add('hide');return;}
+  const m=T_ITEMS.filter(i=>i.name.toLowerCase().includes(q)||i.code.toLowerCase().includes(q)).slice(0,12);
+  if(!m.length){box.innerHTML='<div class="sugg-it">Koi item nahi mila</div>';box.classList.remove('hide');return;}
+  box.innerHTML=m.map(i=>`<div class="sugg-it" onclick="tPick('${inpId}','${suggId}','${codeId}','${i.code}')"><b>${esc(i.name)}</b><span>${i.code} · Stock: ${tCurrent(i.code)}${i.uom?' '+esc(i.uom):''}</span></div>`).join('');
+  box.classList.remove('hide');
+}
+function tPick(inpId,suggId,codeId,code){const it=tItem(code);if(!it)return;document.getElementById(inpId).value=it.name;document.getElementById(codeId).value=code;document.getElementById(suggId).classList.add('hide');}
+/* ---- single issue ---- */
+function tRenderIssue(){
+  const ds=document.getElementById('ti_dept');
+  ds.innerHTML=T_DEPTS.map(d=>`<option ${d===T_DEPT?'selected':''}>${esc(d)}</option>`).join('');
+  const dd=document.getElementById('ti_date');if(!dd.value)dd.value=today();
+  const rows=T_ISSUES.slice().reverse().slice(0,20);
+  document.getElementById('statIssueTable').innerHTML='<tr><th>Date</th><th>Item</th><th>Dept</th><th>Qty</th><th>Received By</th><th>Remark</th>'+(currentRole==='pm'?'<th></th>':'')+'</tr>'+
+    rows.map(e=>{const it=tItem(e.code)||{};return `<tr><td>${fmtD(e.date)}</td><td><b>${esc(it.name||e.code)}</b></td><td>${esc(e.dept||'')}</td><td>${e.qty}</td><td>${esc(e.recv||'-')}</td><td>${esc(e.remarks||'-')}</td>`+(currentRole==='pm'?`<td><button class="btn btn-sm" onclick="tDelIssue('${e.id}')">🗑</button></td>`:'')+'</tr>';}).join('');
+}
+function tSaveIssue(){
+  const date=document.getElementById('ti_date').value||today();
+  const code=document.getElementById('ti_code').value;
+  const qty=+document.getElementById('ti_qty').value||0;
+  const dept=document.getElementById('ti_dept').value||'';
+  const recv=(document.getElementById('ti_recv').value||'').trim();
+  const rem=(document.getElementById('ti_rem').value||'').trim();
+  if(!code){toast('Pehle item search karke chuno',true);return;}
+  if(qty<=0){toast('Qty 0 se zyada likho',true);return;}
+  if(qty>tCurrent(code)){toast('Stock me sirf '+tCurrent(code)+' hai',true);return;}
+  const e={id:uid(),date,code,qty,dept,recv,remarks:rem,ts:Date.now()};
+  T_ISSUES.push(e);statSaveLocal();fbCol('saveToCol','pm_stat_issues',e.id,e);
+  document.getElementById('ti_item').value='';document.getElementById('ti_code').value='';document.getElementById('ti_qty').value='';document.getElementById('ti_rem').value='';
+  renderStat();toast('✅ Issue save · '+((tItem(code)||{}).name||'')+': '+tCurrent(code)+' bacha');
+}
+function tDelIssue(id){if(!confirm('Ye issue entry delete karein?'))return;T_ISSUES=T_ISSUES.filter(e=>e.id!==id);statSaveLocal();fbCol('deleteFromCol','pm_stat_issues',id);renderStat();}
+/* ---- receipt ---- */
+function tRenderReceipt(){
+  const dd=document.getElementById('tr_date');if(!dd.value)dd.value=today();
+  const rows=T_RECEIPTS.slice().reverse().slice(0,20);
+  document.getElementById('statReceiptTable').innerHTML='<tr><th>Date</th><th>Item</th><th>Qty</th><th>Remark</th>'+(currentRole==='pm'?'<th></th>':'')+'</tr>'+
+    rows.map(e=>{const it=tItem(e.code)||{};return `<tr><td>${fmtD(e.date)}</td><td><b>${esc(it.name||e.code)}</b></td><td>${e.qty}</td><td>${esc(e.remarks||'-')}</td>`+(currentRole==='pm'?`<td><button class="btn btn-sm" onclick="tDelReceipt('${e.id}')">🗑</button></td>`:'')+'</tr>';}).join('');
+}
+function tSaveReceipt(){
+  const date=document.getElementById('tr_date').value||today();
+  const code=document.getElementById('tr_code').value;
+  const qty=+document.getElementById('tr_qty').value||0;
+  const rem=(document.getElementById('tr_rem').value||'').trim();
+  if(!code){toast('Pehle item search karke chuno',true);return;}
+  if(qty<=0){toast('Qty 0 se zyada likho',true);return;}
+  const e={id:uid(),date,code,qty,remarks:rem,ts:Date.now()};
+  T_RECEIPTS.push(e);statSaveLocal();fbCol('saveToCol','pm_stat_receipts',e.id,e);
+  document.getElementById('tr_item').value='';document.getElementById('tr_code').value='';document.getElementById('tr_qty').value='';document.getElementById('tr_rem').value='';
+  renderStat();toast('✅ Receipt save · '+((tItem(code)||{}).name||''));
+}
+function tDelReceipt(id){if(!confirm('Ye receipt entry delete karein?'))return;T_RECEIPTS=T_RECEIPTS.filter(e=>e.id!==id);statSaveLocal();fbCol('deleteFromCol','pm_stat_receipts',id);renderStat();}
+/* ---- stock ---- */
+function tRenderStock(){
+  const q=(document.getElementById('ty_filter').value||'').trim().toLowerCase();
+  const rows=T_ITEMS.filter(i=>!q||i.name.toLowerCase().includes(q)||i.code.toLowerCase().includes(q));
+  document.getElementById('statStockTable').innerHTML='<tr><th>Code</th><th>Item</th><th>UOM</th><th>Opening<br><small>'+STAT_OPENING_LABEL+'</small></th><th>Received</th><th>Issued</th><th>Current</th><th>Status</th></tr>'+
+    rows.map(it=>{const cur=tCurrent(it.code);return `<tr><td>${it.code}</td><td><b>${esc(it.name)}</b></td><td>${esc(it.uom||'-')}</td><td>${it.opening||0}</td><td>${tReceived(it.code)}</td><td>${tIssued(it.code)}</td><td><b style="${cur<0?'color:#b3261e':''}">${cur}</b></td><td>${tPill(tStatus(it.code))}</td></tr>`;}).join('');
+}
+function tStockCSV(){
+  const q=(document.getElementById('ty_filter').value||'').trim().toLowerCase();
+  const rows=T_ITEMS.filter(i=>!q||i.name.toLowerCase().includes(q)||i.code.toLowerCase().includes(q));
+  const qq=v=>'"'+String(v==null?'':v).replace(/"/g,'""')+'"';
+  const lines=[['Code','Item','UOM','Opening ('+STAT_OPENING_LABEL+')','Received','Issued','Current','Status'].map(qq).join(',')];
+  rows.forEach(it=>{lines.push([it.code,it.name,it.uom||'',it.opening||0,tReceived(it.code),tIssued(it.code),tCurrent(it.code),tStatus(it.code)].map(qq).join(','));});
+  return '\uFEFF'+lines.join('\r\n');
+}
+function tExportStock(){
+  try{
+    const blob=new Blob([tStockCSV()],{type:'text/csv;charset=utf-8'});
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(blob);
+    a.download='Ginger_Stationery_Stock_'+today()+'.csv';
+    document.body.appendChild(a);a.click();
+    setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},800);
+    toast('✅ Excel file download ho gayi');
+  }catch(e){toast('Download me dikkat aayi',true);}
+}
+function tPrintStock(){
+  ['slipPrint','reqPrint','stockPrint','tSlipPrint'].forEach(id=>{const el=document.getElementById(id);if(el)el.innerHTML='';});
+  const q=(document.getElementById('ty_filter').value||'').trim().toLowerCase();
+  const rows=T_ITEMS.filter(i=>!q||i.name.toLowerCase().includes(q)||i.code.toLowerCase().includes(q));
+  const th='border:1px solid #000;padding:5px;background:#eee;font-size:11px';
+  const td='border:1px solid #000;padding:5px;font-size:11px';
+  const body=rows.map((it,i)=>{const cur=tCurrent(it.code);
+    return `<tr><td style="${td};text-align:center">${i+1}</td><td style="${td}">${it.code}</td><td style="${td}">${esc(it.name)}</td><td style="${td};text-align:center">${esc(it.uom||'-')}</td><td style="${td};text-align:center">${it.opening||0}</td><td style="${td};text-align:center">${tReceived(it.code)}</td><td style="${td};text-align:center">${tIssued(it.code)}</td><td style="${td};text-align:center"><b>${cur}</b></td><td style="${td};text-align:center">${tStatus(it.code)}</td></tr>`;}).join('');
+  const totCur=rows.reduce((t,it)=>t+tCurrent(it.code),0);
+  document.getElementById('tStockPrint').innerHTML=
+  `<div style="font-family:Arial,Helvetica,sans-serif;color:#000;padding:6px">
+    <div style="text-align:center;border-bottom:2px solid #000;padding-bottom:8px;margin-bottom:10px">
+      <div style="font-size:20px;font-weight:800">GINGER JAIPUR — AJMER ROAD</div>
+      <div style="font-size:14px;margin-top:2px">Stationery — Current Stock Report</div>
+      <div style="font-size:13px;margin-top:2px">Date: ${fmtD(today())} · Opening: ${STAT_OPENING_LABEL}${rows.length!==T_ITEMS.length?' · Filtered: '+rows.length+' of '+T_ITEMS.length+' items':''}</div>
+    </div>
+    <table style="width:100%;border-collapse:collapse">
+      <tr><th style="${th}">S.No</th><th style="${th}">Code</th><th style="${th}">Item</th><th style="${th}">UOM</th><th style="${th}">Opening</th><th style="${th}">Received</th><th style="${th}">Issued</th><th style="${th}">Current</th><th style="${th}">Status</th></tr>
+      ${body}
+      <tr><td colspan="7" style="${td};text-align:right"><b>Total</b></td><td style="${td};text-align:center"><b>${totCur}</b></td><td style="${td};text-align:center"><b>${rows.length} items</b></td></tr>
+    </table>
+    <div style="display:flex;justify-content:space-between;margin-top:44px;font-size:13px">
+      <div style="text-align:center">Prepared By<br><br>........................</div>
+      <div style="text-align:center">Checked By<br><br>........................</div>
+    </div>
+  </div>`;
+  setTimeout(()=>window.print(),60);
+}
+/* ---- items master ---- */
+function tGenCode(){let n=0;T_ITEMS.forEach(i=>{const c=i.code||'';if(c.indexOf('ST-')===0){const num=parseInt(c.slice(3),10);if(num>n)n=num;}});let code;do{n++;code='ST-'+String(n).padStart(3,'0');}while(tItem(code));return code;}
+function tEditItem(code,f,v){const it=tItem(code);if(!it)return;it[f]=v;statSaveLocal();fbCol('saveToCol','pm_stat_items',code,it);}
+function tDelItem(code){if(!confirm('Ye item delete karein? (uske issue/receipt entries rahenge)'))return;T_ITEMS=T_ITEMS.filter(i=>i.code!==code);statSaveLocal();fbCol('deleteFromCol','pm_stat_items',code);renderStat();toast('🗑 Item delete ho gaya');}
+function tAddItem(){
+  const name=(document.getElementById('ta_name').value||'').trim();
+  if(!name){toast('Item ka naam likho',true);return;}
+  const code=tGenCode();
+  const it={code,name,uom:(document.getElementById('ta_uom').value||'').trim()||'Pcs',opening:+document.getElementById('ta_opening').value||0,reorder:(document.getElementById('ta_reorder').value||'').trim(),expiry:'',loc:''};
+  T_ITEMS.push(it);statSaveLocal();fbCol('saveToCol','pm_stat_items',code,it);
+  document.getElementById('ta_name').value='';document.getElementById('ta_opening').value='';document.getElementById('ta_reorder').value='';
+  renderStat();toast('✅ Item add ho gaya · '+code);
+}
+function tRenderItems(){
+  const q=(document.getElementById('tm_filter').value||'').trim().toLowerCase();
+  const pm=currentRole==='pm';
+  const rows=T_ITEMS.filter(i=>!q||i.name.toLowerCase().includes(q)||i.code.toLowerCase().includes(q));
+  document.getElementById('tm_count').textContent=rows.length+' items';
+  document.getElementById('statItemsTable').innerHTML='<tr><th>Code</th><th>Item</th><th>Opening<br><small>'+STAT_OPENING_LABEL+'</small></th><th>UOM</th><th>Re-order Level</th>'+(pm?'<th></th>':'')+'</tr>'+
+    rows.map(it=>`<tr><td>${it.code}</td><td><b>${esc(it.name)}</b></td><td>${it.opening||0}</td>`+
+    (pm?`<td><input class="smini" value="${esc(it.uom||'')}" onchange="tEditItem('${it.code}','uom',this.value)"></td><td><input class="smini" type="number" value="${esc(String(it.reorder||''))}" onchange="tEditItem('${it.code}','reorder',this.value)"></td><td><button class="btn btn-sm" onclick="tDelItem('${it.code}')">🗑</button></td>`
+       :`<td>${esc(it.uom||'-')}</td><td>${esc(String(it.reorder||'-'))}</td>`)+'</tr>').join('');
+}
+/* ---- daily slip ---- */
+function tRenderSlip(){
+  const dd=document.getElementById('ty_slip_date');if(!dd.value)dd.value=today();
+  const ds=document.getElementById('ty_slip_dept');
+  if(!ds.options.length)ds.innerHTML='<option value="">Sab departments</option>'+T_DEPTS.map(d=>`<option>${esc(d)}</option>`).join('');
+  const date=dd.value,df=ds.value;
+  const rows=T_ISSUES.filter(e=>e.date===date&&(!df||e.dept===df)).sort((a,b)=>(a.dept||'').localeCompare(b.dept||''));
+  document.getElementById('ty_slip_meta').textContent=rows.length?rows.length+' entries · '+rows.reduce((a,e)=>a+(+e.qty||0),0)+' total qty':'Is date par koi issue nahi';
+  document.getElementById('statSlipView').innerHTML='<tr><th>Department</th><th>Item</th><th>Qty</th><th>Received By</th><th>Remark</th></tr>'+
+    rows.map(e=>{const it=tItem(e.code)||{};return `<tr><td>${esc(e.dept||'-')}</td><td><b>${esc(it.name||e.code)}</b></td><td>${e.qty}${it.uom?' '+esc(it.uom):''}</td><td>${esc(e.recv||'-')}</td><td>${esc(e.remarks||'-')}</td></tr>`;}).join('');
+}
+function tPrintSlip(){
+  ['slipPrint','reqPrint','stockPrint','tStockPrint'].forEach(id=>{const el=document.getElementById(id);if(el)el.innerHTML='';});
+  tRenderSlip();
+  const date=document.getElementById('ty_slip_date').value||today();
+  const df=document.getElementById('ty_slip_dept').value;
+  const rows=T_ISSUES.filter(e=>e.date===date&&(!df||e.dept===df)).sort((a,b)=>(a.dept||'').localeCompare(b.dept||''));
+  const th='border:1px solid #000;padding:6px;background:#eee';
+  const td='border:1px solid #000;padding:6px';
+  const body=rows.map((e,i)=>{const it=tItem(e.code)||{};
+    return `<tr><td style="${td};text-align:center">${i+1}</td><td style="${td}">${esc(e.dept||'-')}</td><td style="${td}">${esc(it.name||e.code)}</td><td style="${td};text-align:center">${e.qty}${it.uom?' '+esc(it.uom):''}</td><td style="${td}">${esc(e.recv||'')}</td><td style="${td}">${esc(e.remarks||'')}</td></tr>`;}).join('');
+  const tot=rows.reduce((a,e)=>a+(+e.qty||0),0);
+  document.getElementById('tSlipPrint').innerHTML=
+  `<div style="font-family:Arial,Helvetica,sans-serif;color:#000;padding:6px">
+    <div style="text-align:center;border-bottom:2px solid #000;padding-bottom:8px;margin-bottom:10px">
+      <div style="font-size:20px;font-weight:800">GINGER JAIPUR — AJMER ROAD</div>
+      <div style="font-size:14px;margin-top:2px">Stationery — Daily Issue Summary${df?' · '+esc(df):''}</div>
+      <div style="font-size:13px;margin-top:2px">Date: ${fmtD(date)}</div>
+    </div>
+    <table style="width:100%;border-collapse:collapse">
+      <tr><th style="${th}">S.No</th><th style="${th}">Department</th><th style="${th}">Item</th><th style="${th}">Qty</th><th style="${th}">Received By</th><th style="${th}">Remark</th></tr>
+      ${body||`<tr><td colspan="6" style="${td};text-align:center">Koi issue nahi</td></tr>`}
+      <tr><td colspan="3" style="${td};text-align:right"><b>Total</b></td><td style="${td};text-align:center"><b>${tot}</b></td><td colspan="2" style="${td}"><b>${rows.length} entries</b></td></tr>
+    </table>
+    <div style="display:flex;justify-content:space-between;margin-top:44px;font-size:13px">
+      <div style="text-align:center">Store Keeper<br><br>........................</div>
+      <div style="text-align:center">Received By<br><br>........................</div>
+      <div style="text-align:center">Manager<br><br>........................</div>
+    </div>
+  </div>`;
+  setTimeout(()=>window.print(),60);
+}
+
 </script>
 
 </body>
