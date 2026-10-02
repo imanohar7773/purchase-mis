@@ -1174,6 +1174,7 @@ tfoot td{font-weight:800;background:#f0f5f3;border-top:2px solid var(--teal);fon
     <button onclick="prideTab('audit')" id="np-audit">🔒 Audit</button>
     <button onclick="prideTab('products')" id="np-products">📦 Products</button>
     <button onclick="prideTab('store')" id="np-store">🏬 Store</button>
+    <button onclick="prideTab('bincard')" id="np-bincard">🗂 Bin Card</button>
     <button onclick="prideTab('dataeditor')" id="np-dataeditor" class="pm-only">✏ Data Editor</button>
     <button onclick="prideTab('export')" id="np-export" class="pm-only">⬇ Export</button>
   </div>
@@ -1202,6 +1203,11 @@ tfoot td{font-weight:800;background:#f0f5f3;border-top:2px solid var(--teal);fon
           <select id="pride_imp_cat" class="smini" style="width:170px"></select>
         </div>
         <div style="font-size:12px;color:var(--ink3);margin-bottom:6px">Format: <b>Item, Qty, Rate</b> — ek line me ek item. Naye items upar chuni category me judenge.</div>
+        <div style="display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap">
+          <button class="btn btn-sm" onclick="document.getElementById('pride_imp_file').click()">📁 CSV File Chuno</button>
+          <input type="file" id="pride_imp_file" accept=".csv,.txt" style="display:none" onchange="prideImpFileCh(event)">
+          <span style="font-size:12px;color:var(--ink3)">ya neeche paste karo</span>
+        </div>
         <textarea id="pride_imp_text" rows="8" style="width:100%;font-family:monospace" placeholder="Poha (800gm), 10, 63&#10;Sugar, 50, 42"></textarea>
         <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
           <button class="btn btn-sm" onclick="prideImpPreview()">👁 Preview</button>
@@ -1264,7 +1270,18 @@ tfoot td{font-weight:800;background:#f0f5f3;border-top:2px solid var(--teal);fon
 
   <!-- 6. VENDORS -->
   <div id="pride-vendors" class="pride-sub hide">
-    <div class="card"><div class="card-head"><h2>🏢 Vendors</h2></div>
+    <div class="card"><div class="card-head"><h2>🏢 Vendor Directory</h2>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <button class="btn btn-primary btn-sm pm-only" onclick="prideVendorAdd()">＋ Naya Vendor</button>
+        <button class="btn btn-sm" onclick="prideVendorExcel()">📊 Excel</button>
+        <button class="btn btn-sm" onclick="prideVendorPrint()">🖨 Print</button>
+      </div></div>
+      <div class="card-body">
+        <div id="pride_vdir_meta" style="font-size:13px;color:var(--ink3);margin-bottom:8px"></div>
+        <div class="table-scroll"><table id="pride_vdir_table"></table></div>
+        <div style="font-size:12px;color:var(--ink3);margin-top:6px">Purane Purchase MIS wale vendors apne aap jud jate hain · naye bill ka vendor bhi auto-judta hai · details (phone/address/GSTIN) edit kar sakte ho.</div>
+      </div></div>
+    <div class="card"><div class="card-head"><h2>🏢 Vendor-wise Kharid</h2></div>
       <div class="card-body"><div class="table-scroll"><table id="pride_vendors_table"></table></div></div></div>
   </div>
 
@@ -1324,12 +1341,13 @@ tfoot td{font-weight:800;background:#f0f5f3;border-top:2px solid var(--teal);fon
         </div>
         <div id="pride_store_meta" style="font-size:13px;color:var(--ink3);margin-bottom:8px"></div>
         <div class="table-scroll"><table id="pride_store_table"></table></div>
-        <h4 style="margin:14px 0 6px">Dept-wise Issue Register</h4>
+        <h4 style="margin:14px 0 6px">🧾 Issue Slip History</h4>
         <div style="display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap">
           <select id="pride_ireg_dept" class="smini" style="width:170px" onchange="prideRenderIssueReg()"></select>
           <input id="pride_ireg_d" class="smini" type="date" style="width:150px" onchange="prideRenderIssueReg()">
         </div>
         <div class="table-scroll"><table id="pride_ireg_table"></table></div>
+        <div id="pride_ireg_detail" style="margin-top:10px"></div>
       </div></div>
   </div>
 
@@ -1365,7 +1383,27 @@ tfoot td{font-weight:800;background:#f0f5f3;border-top:2px solid var(--teal);fon
             <button class="btn btn-sm" onclick="prideExportItems()">📊 Excel</button></div></div>
           <div class="card"><div class="card-body"><b>🔒 Audit Log</b><br><br>
             <button class="btn btn-sm" onclick="prideExportAudit()">📊 Excel</button></div></div>
+          <div class="card"><div class="card-body"><b>💾 Backup (poora data)</b><br><span style="font-size:12px;color:var(--ink3)">Items + Bills + Issues + Audit — ek file me safe</span><br><br>
+            <button class="btn btn-sm" onclick="prideBackup()">⬇ Backup Download</button></div></div>
+          <div class="card"><div class="card-body"><b>📥 Restore</b><br><span style="font-size:12px;color:var(--ink3)">Backup file se wapas lao (pehle maujooda ka auto-backup download hoga)</span><br><br>
+            <button class="btn btn-sm" onclick="document.getElementById('pride_restore_file').click()">⬆ Restore Karo</button>
+            <input type="file" id="pride_restore_file" accept=".json,application/json" style="display:none" onchange="prideRestoreFile(event)"></div></div>
         </div>
+      </div></div>
+  </div>
+
+  <!-- 15. BIN CARD -->
+  <div id="pride-bincard" class="pride-sub hide">
+    <div class="card"><div class="card-head"><h2>🗂 Bin Card</h2>
+      <button class="btn btn-primary btn-sm" onclick="prideBinPrintCur()">🖨 Print Bin Card</button></div>
+      <div class="card-body">
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+          <input id="pride_bin_q" class="smini" placeholder="🔍 item dhoondo..." list="pride_item_dl" style="flex:1;min-width:220px">
+          <button class="btn btn-primary btn-sm" onclick="prideBinShow()">Dikhao</button>
+        </div>
+        <div id="pride_bin_head"></div>
+        <div id="pride_bin_card"></div>
+        <div style="font-size:12px;color:var(--ink3);margin-top:8px">Receipt lines purchase bills se auto-aati hain (vendor + date + qty) · Issue lines dept issues se (dept + date + qty) · MFG/EXP/Location yahin edit hota hai.</div>
       </div></div>
   </div>
 
@@ -3774,11 +3812,11 @@ const PRIDE_SEED=[{"id": "ps1", "name": "GINGER - TENT CARD [DIVINE GRAPHICS] /"
    Fresh start 01-Oct-2026. Purane data ko bilkul touch nahi karta. */
 const PRIDE_CATS=['STATIONERY','HOUSEKEEPING','FOOD','BEVERAGE'];
 const PRIDE_DEPTS=['F&B','Housekeeping','Kitchen','Front Office','Maintenance'];
-const PRIDE_LS={items:'ginger_pride_items_v1',bills:'ginger_pride_bills_v1',issues:'ginger_pride_issues_v1',audit:'ginger_pride_audit_v1'};
-const PRIDE_FB={items:'pm_pride_items',bills:'pm_pride_bills',issues:'pm_pride_issues',audit:'pm_pride_audit'};
+const PRIDE_LS={items:'ginger_pride_items_v1',bills:'ginger_pride_bills_v1',issues:'ginger_pride_issues_v1',audit:'ginger_pride_audit_v1',vendors:'ginger_pride_vendors_v1'};
+const PRIDE_FB={items:'pm_pride_items',bills:'pm_pride_bills',issues:'pm_pride_issues',audit:'pm_pride_audit',vendors:'pm_pride_vendors'};
 const PRIDE_SEEDFLAG='ginger_pride_seedpushed_v1';
 let PRIDE_TAB='dash', PRIDE_DETAB='items';
-let P_ITEMS=[], P_BILLS=[], P_ISSUES=[], P_AUDIT=[];
+let P_ITEMS=[], P_BILLS=[], P_ISSUES=[], P_AUDIT=[], P_VENDORS=[];
 let P_STOCK={};
 function prideR2(n){return Math.round((+n||0)*100)/100;}
 function prideItem(id){return P_ITEMS.find(i=>i.id===id);}
@@ -3793,6 +3831,7 @@ function prideSaveLocal(){try{
   localStorage.setItem(PRIDE_LS.bills,JSON.stringify(P_BILLS));
   localStorage.setItem(PRIDE_LS.issues,JSON.stringify(P_ISSUES));
   localStorage.setItem(PRIDE_LS.audit,JSON.stringify(P_AUDIT.slice(-500)));
+  localStorage.setItem(PRIDE_LS.vendors,JSON.stringify(P_VENDORS));
 }catch(e){}}
 function prideRecalc(){
   P_STOCK={};
@@ -3813,12 +3852,13 @@ function prideMergeInto(local,cloud){
 async function pridePullCloud(){
   if(!window._fbReady||!window._fb||!window._fb.loadCol)return;
   try{
-    const r=await Promise.all([window._fb.loadCol(PRIDE_FB.items),window._fb.loadCol(PRIDE_FB.bills),window._fb.loadCol(PRIDE_FB.issues),window._fb.loadCol(PRIDE_FB.audit)]);
+    const r=await Promise.all([window._fb.loadCol(PRIDE_FB.items),window._fb.loadCol(PRIDE_FB.bills),window._fb.loadCol(PRIDE_FB.issues),window._fb.loadCol(PRIDE_FB.audit),window._fb.loadCol(PRIDE_FB.vendors)]);
     let ch=false;
     ch=prideMergeInto(P_ITEMS,r[0])||ch;
     ch=prideMergeInto(P_BILLS,r[1])||ch;
     ch=prideMergeInto(P_ISSUES,r[2])||ch;
     ch=prideMergeInto(P_AUDIT,r[3])||ch;
+    ch=prideMergeInto(P_VENDORS,r[4])||ch;
     if(ch){prideRecalc();prideSaveLocal();prideFillItemDL();if(PRIDE_TAB)prideRender();toast('☁ Pride cloud se sync ho gaya');}
   }catch(e){}
 }
@@ -3843,14 +3883,29 @@ function prideLoadLocal(){
   P_BILLS=prideLSGet(PRIDE_LS.bills,[]);
   P_ISSUES=prideLSGet(PRIDE_LS.issues,[]);
   P_AUDIT=prideLSGet(PRIDE_LS.audit,[]);
+  P_VENDORS=prideLSGet(PRIDE_LS.vendors,[]);
   P_ITEMS=prideLSGet(PRIDE_LS.items,null);
   PRIDE_SEEDED=false;
   if(!P_ITEMS||!P_ITEMS.length){P_ITEMS=JSON.parse(JSON.stringify(PRIDE_SEED));PRIDE_SEEDED=true;}
+  prideBackfillSlipNos();
   prideRecalc();
+}
+/* purane issues ko slip number do (date order me) */
+function prideBackfillSlipNos(){
+  let n=0;
+  P_ISSUES.forEach(s=>{const m=/^ISL-(\d+)$/.exec(s.no||'');if(m)n=Math.max(n,+m[1]);});
+  const missing=P_ISSUES.filter(s=>!/^ISL-\d+$/.test(s.no||'')).sort((a,b)=>(a.date||'').localeCompare(b.date||''));
+  missing.forEach(s=>{n++;s.no='ISL-'+String(n).padStart(4,'0');s.u=s.u||Date.now();});
+  if(missing.length)prideSaveLocal();
+}
+function prideNextSlipNo(){
+  let n=0;
+  P_ISSUES.forEach(s=>{const m=/^ISL-(\d+)$/.exec(s.no||'');if(m)n=Math.max(n,+m[1]);});
+  return 'ISL-'+String(n+1).padStart(4,'0');
 }
 
 /* ---------- tab switching ---------- */
-const PRIDE_TABS=['dash','import','entry','bills','search','vendors','rate','daily','monthly','audit','products','store','dataeditor','export'];
+const PRIDE_TABS=['dash','import','entry','bills','search','vendors','rate','daily','monthly','audit','products','store','bincard','dataeditor','export'];
 function prideTab(t){
   PRIDE_TAB=t;
   document.querySelectorAll('#tab-pride .pride-sub').forEach(el=>el.classList.add('hide'));
@@ -3870,6 +3925,7 @@ function prideRender(){
   else if(PRIDE_TAB==='audit')prideRenderAudit();
   else if(PRIDE_TAB==='products')prideRenderProducts();
   else if(PRIDE_TAB==='store'){prideRenderStore();prideRenderIssueReg();}
+  else if(PRIDE_TAB==='bincard')prideRenderBin();
   else if(PRIDE_TAB==='dataeditor')prideRenderDE();
 }
 
@@ -3890,11 +3946,37 @@ function prideFillStatic(){
   const ed=document.getElementById('pride_ent_date');if(ed&&!ed.value)ed.value=today();
   const idt=document.getElementById('pride_imp_date');if(idt&&!idt.value)idt.value=today();
   prideFillVendors();prideFillItemDL();
+  try{prideMergeOldVendors();}catch(e){}
 }
 function prideFillVendors(){
-  const vs=[...new Set(P_BILLS.map(b=>b.vendor).filter(Boolean))].sort();
+  const names={};
+  P_VENDORS.forEach(v=>{if(v&&v.name)names[norm(v.name)]=v.name;});
+  P_BILLS.forEach(b=>{if(b.vendor&&!names[norm(b.vendor)])names[norm(b.vendor)]=b.vendor;});
+  const vs=Object.keys(names).map(k=>names[k]).sort();
   const dl=document.getElementById('pride_vendor_dl');
   if(dl)dl.innerHTML=vs.map(v=>'<option value="'+esc(v)+'">').join('');
+}
+/* vendor master me pakka karo (naam se dedupe) */
+function prideEnsureVendor(name,details){
+  name=(name||'').trim();if(!name)return null;
+  let v=P_VENDORS.find(x=>norm(x.name)===norm(name));
+  if(!v){
+    v=Object.assign({id:uid(),name:name,phone:'',contact:'',address:'',gst:'',u:Date.now()},details||{});
+    P_VENDORS.push(v);
+    prideSaveLocal();prideCloudPut('vendors',v);
+  }
+  return v;
+}
+/* purane Purchase MIS (DATA) se vendor naam lao — sirf read, purana data untouched */
+function prideMergeOldVendors(){
+  try{
+    if(typeof DATA==='undefined'||!DATA||!DATA.length)return 0;
+    const old=[...new Set(DATA.map(d=>d.vendor).filter(Boolean))];
+    let added=0;
+    old.forEach(nm=>{if(!P_VENDORS.some(x=>norm(x.name)===norm(nm))){prideEnsureVendor(nm);added++;}});
+    if(added)prideFillVendors();
+    return added;
+  }catch(e){return 0;}
 }
 function prideFillItemDL(){
   let dl=document.getElementById('pride_item_dl');
@@ -3986,6 +4068,7 @@ function prideImpSave(){
   const total=prideR2(items.reduce((a,l)=>a+l.amt,0));
   const bill={id:uid(),billNo:no,date:dt,vendor:vendor,items:items,total:total,remark:'Import',u:Date.now()};
   P_BILLS.push(bill);ops.push({kind:'bills',doc:bill});
+  prideEnsureVendor(vendor);
   prideSaveAll(ops);
   prideAudit('Bill import',no+' · '+vendor+' · '+items.length+' items · '+inr(total));
   document.getElementById('pride_imp_text').value='';document.getElementById('pride_imp_no').value='';
@@ -4072,6 +4155,7 @@ function prideEntCommit(no,dt,vendor,remark,raws){
   const total=prideR2(items.reduce((a,l)=>a+l.amt,0));
   const bill={id:uid(),billNo:no,date:dt,vendor:vendor,items:items,total:total,remark:remark,u:Date.now()};
   P_BILLS.push(bill);
+  prideEnsureVendor(vendor);
   prideSaveAll([{kind:'bills',doc:bill}]);
   prideAudit('Bill add',no+' · '+vendor+' · '+items.length+' items · '+inr(total));
   document.getElementById('pride_ent_no').value='';document.getElementById('pride_ent_vendor').value='';
@@ -4141,7 +4225,7 @@ function prideIssueBulk(){
   if(!lines.length){toast('Koi item tick karke qty nahi likhi',true);return;}
   const short=lines.filter(l=>l.qty>(P_STOCK[l.id]||0)+0.0001);
   if(short.length&&!confirm('Stock kam hai: '+short.map(s=>s.name+' (stock '+(P_STOCK[s.id]||0)+')').join(', ')+'\nPhir bhi issue karein?'))return;
-  const doc={id:uid(),date:dt,dept:dept,items:lines,total:prideR2(lines.reduce((a,l)=>a+l.amt,0)),remark:remark,u:Date.now()};
+  const doc={id:uid(),no:prideNextSlipNo(),date:dt,dept:dept,items:lines,total:prideR2(lines.reduce((a,l)=>a+l.amt,0)),remark:remark,u:Date.now()};
   P_ISSUES.push(doc);
   prideSaveAll([{kind:'issues',doc:doc}]);
   prideAudit('Dept issue',dept+' · '+fmtD(dt)+' · '+lines.length+' items · '+inr(doc.total)+(remark?' · '+remark:''));
@@ -4150,13 +4234,62 @@ function prideIssueBulk(){
   toast('✅ '+lines.length+' items → '+dept);
 }
 
-/* ---------- 6. VENDORS ---------- */
+/* ---------- 6. VENDORS (directory + purchase summary) ---------- */
 function prideRenderVendors(){
+  try{prideMergeOldVendors();}catch(e){}
+  const pm=prideCanEdit();
+  document.getElementById('pride_vdir_table').innerHTML='<tr><th>Vendor</th><th>Phone</th><th>Contact Person</th><th>Address</th><th>GSTIN</th>'+(pm?'<th></th>':'')+'</tr>'+
+    ([...P_VENDORS].sort((a,b)=>norm(a.name).localeCompare(norm(b.name))).map(v=>'<tr><td><b>'+esc(v.name)+'</b></td><td>'+esc(v.phone||'-')+'</td><td>'+esc(v.contact||'-')+'</td><td>'+esc(v.address||'-')+'</td><td>'+esc(v.gst||'-')+'</td>'+(pm?'<td style="white-space:nowrap"><button class="btn btn-sm" onclick="prideVendorEdit(\''+v.id+'\')">✏️</button> <button class="btn btn-sm" onclick="prideVendorDel(\''+v.id+'\')">🗑</button></td>':'')+'</tr>').join('')||'<tr><td colspan="6" style="color:var(--ink3)">Koi vendor nahi — bill banao ya purane Purchase MIS se auto-ayenge</td></tr>');
+  document.getElementById('pride_vdir_meta').textContent=P_VENDORS.length+' vendors';
   const m={};
   P_BILLS.forEach(b=>{const k=b.vendor||'(bina vendor)';if(!m[k])m[k]={vendor:k,bills:0,total:0,last:''};m[k].bills++;m[k].total=prideR2(m[k].total+(+b.total||0));if((b.date||'')>m[k].last)m[k].last=b.date;});
   const rows=Object.values(m).sort((a,b)=>b.total-a.total);
   document.getElementById('pride_vendors_table').innerHTML='<tr><th>Vendor</th><th>Bills</th><th>Total Kharid</th><th>Last Bill</th></tr>'+
     (rows.map(v=>'<tr><td><b>'+esc(v.vendor)+'</b></td><td style="text-align:center">'+v.bills+'</td><td style="text-align:right"><b>'+inr(v.total)+'</b></td><td>'+fmtD(v.last)+'</td></tr>').join('')||'<tr><td colspan="4" style="color:var(--ink3)">Koi vendor nahi</td></tr>');
+}
+function prideVendorAdd(){
+  if(!prideNeedPM())return;
+  const name=prompt('Vendor ka naam:');if(!name||!name.trim())return;
+  if(P_VENDORS.some(v=>norm(v.name)===norm(name))){toast('Ye vendor pehle se hai',true);return;}
+  const phone=prompt('Phone:','')||'';
+  const contact=prompt('Contact person:','')||'';
+  prideEnsureVendor(name,{phone:phone.trim(),contact:contact.trim()});
+  prideAudit('Naya vendor',name.trim());
+  prideRenderVendors();toast('✅ Vendor jud gaya');
+}
+function prideVendorEdit(id){
+  if(!prideNeedPM())return;
+  const v=P_VENDORS.find(x=>x.id===id);if(!v)return;
+  const name=prompt('Vendor naam:',v.name);if(name==null)return;
+  const phone=prompt('Phone:',v.phone||'');if(phone==null)return;
+  const contact=prompt('Contact person:',v.contact||'');if(contact==null)return;
+  const address=prompt('Address:',v.address||'');if(address==null)return;
+  const gst=prompt('GSTIN:',v.gst||'');if(gst==null)return;
+  if(name.trim()&&P_VENDORS.some(x=>x.id!==id&&norm(x.name)===norm(name))){toast('Ye naam pehle se hai',true);return;}
+  v.name=name.trim()||v.name;v.phone=phone.trim();v.contact=contact.trim();v.address=address.trim();v.gst=gst.trim().toUpperCase();v.u=Date.now();
+  prideSaveAll([{kind:'vendors',doc:v}]);
+  prideAudit('Vendor edit',v.name);
+  prideRenderVendors();toast('✅ Vendor update');
+}
+function prideVendorDel(id){
+  if(!prideNeedPM())return;
+  const v=P_VENDORS.find(x=>x.id===id);if(!v)return;
+  if(!confirm('Vendor directory se hatayein?\n'+v.name+'\n(Bills ka data nahi mitega)'))return;
+  P_VENDORS=P_VENDORS.filter(x=>x.id!==id);
+  prideSaveAll([{kind:'vendors',del:id}]);
+  prideAudit('Vendor delete',v.name);
+  prideRenderVendors();toast('🗑 Vendor hataya');
+}
+function prideVendorExcel(){
+  const rows=[['Vendor','Phone','Contact Person','Address','GSTIN']];
+  [...P_VENDORS].sort((a,b)=>norm(a.name).localeCompare(norm(b.name))).forEach(v=>rows.push([v.name,v.phone||'',v.contact||'',v.address||'',v.gst||'']));
+  prideCSV('Pride_Vendors_'+today()+'.csv',rows);toast('📊 Vendor list Excel download');
+}
+function prideVendorPrint(){
+  let body='<table style="width:100%;border-collapse:collapse">'+prideTHead(['S.No','Vendor','Phone','Contact','Address','GSTIN'])+'<tbody>'+
+    [...P_VENDORS].sort((a,b)=>norm(a.name).localeCompare(norm(b.name))).map((v,i)=>'<tr>'+prideTCell(i+1,'center')+prideTCell('<b>'+esc(v.name)+'</b>')+prideTCell(esc(v.phone||'-'))+prideTCell(esc(v.contact||'-'))+prideTCell(esc(v.address||'-'))+prideTCell(esc(v.gst||'-'))+'</tr>').join('')+
+    '</tbody></table>';
+  pridePrintHTML('Vendor List — sabhi vendors',body);
 }
 
 /* ---------- 7. RATE INTEL ---------- */
@@ -4256,40 +4389,73 @@ function prideProdEdit(id){
   prideRenderProducts();toast('✅ Item update · stock recalc');
 }
 
-/* ---------- 12. STORE (current stock) + issue register ---------- */
+/* ---------- 12. STORE (current stock) + issue slip history ---------- */
 function prideItemBuySell(id){
   let buy=0,sell=0;
   P_BILLS.forEach(b=>{(b.items||[]).forEach(l=>{if(l.id===id)buy+=+l.qty||0;});});
   P_ISSUES.forEach(s=>{(s.items||[]).forEach(l=>{if(l.id===id)sell+=+l.qty||0;});});
   return {buy:prideR2(buy),sell:prideR2(sell)};
 }
+/* store tab ka current filter (category + search) — render aur print dono isi se */
+function prideStoreRows(){
+  const qEl=document.getElementById('pride_stq'),cEl=document.getElementById('pride_stcat');
+  const q=norm((qEl&&qEl.value)||'');
+  const cat=cEl?cEl.value:'';
+  return P_ITEMS.filter(i=>(!cat||i.cat===cat)&&(!q||norm(i.name).includes(q)));
+}
+function prideStoreFilterLabel(){
+  const cEl=document.getElementById('pride_stcat'),qEl=document.getElementById('pride_stq');
+  const cat=cEl?cEl.value:'',q=(qEl&&qEl.value||'').trim();
+  if(cat&&q)return cat+' · "'+q+'"';
+  if(cat)return cat;
+  if(q)return '"'+q+'"';
+  return '';
+}
 function prideRenderStore(){
-  const q=norm(document.getElementById('pride_stq').value||'');
-  const cat=document.getElementById('pride_stcat').value;
   const pm=prideCanEdit();
-  const rows=P_ITEMS.filter(i=>(!cat||i.cat===cat)&&(!q||norm(i.name).includes(q)));
+  const rows=prideStoreRows();
   let totVal=0,zero=0;
   const html=rows.slice(0,400).map(i=>{
     const bs=prideItemBuySell(i.id),st=P_STOCK[i.id]||0,val=prideR2(st*(+i.rate||0));
     totVal=prideR2(totVal+val);if(st<=0)zero++;
-    return '<tr><td><b>'+esc(i.name)+'</b></td><td>'+i.cat+'</td><td>'+esc(i.unit)+'</td><td style="text-align:right">'+i.rate+'</td><td style="text-align:center">'+i.openQty+'</td><td style="text-align:center">'+bs.buy+'</td><td style="text-align:center">'+bs.sell+'</td><td style="text-align:center"><b>'+st+'</b></td><td style="text-align:right">'+inr(val)+'</td>'+(pm?'<td><button class="btn btn-sm" onclick="prideProdEdit(\''+i.id+'\');prideRenderStore()">✏️</button></td>':'')+'</tr>';
+    return '<tr><td><b>'+esc(i.name)+'</b></td><td>'+i.cat+'</td><td>'+esc(i.unit)+'</td><td style="text-align:right">'+i.rate+'</td><td style="text-align:center">'+i.openQty+'</td><td style="text-align:center">'+bs.buy+'</td><td style="text-align:center">'+bs.sell+'</td><td style="text-align:center"><b>'+st+'</b></td><td style="text-align:right">'+inr(val)+'</td><td style="white-space:nowrap"><button class="btn btn-sm" onclick="prideBinGo(\''+i.id+'\')">🗂</button>'+(pm?' <button class="btn btn-sm" onclick="prideProdEdit(\''+i.id+'\');prideRenderStore()">✏️</button>':'')+'</td></tr>';
   }).join('');
   document.getElementById('pride_store_meta').innerHTML='<b>'+rows.length+'</b> items · Stock value <b>'+inr(totVal)+'</b> · <b>'+zero+'</b> zero-stock';
-  document.getElementById('pride_store_table').innerHTML='<tr><th>Item</th><th>Cat</th><th>Unit</th><th>Rate</th><th>Open</th><th>Kharid</th><th>Issue</th><th>Stock</th><th>Value</th>'+(pm?'<th></th>':'')+'</tr>'+(html||'<tr><td colspan="10" style="color:var(--ink3)">Kuch nahi mila</td></tr>');
+  document.getElementById('pride_store_table').innerHTML='<tr><th>Item</th><th>Cat</th><th>Unit</th><th>Rate</th><th>Open</th><th>Kharid</th><th>Issue</th><th>Stock</th><th>Value</th><th></th></tr>'+(html||'<tr><td colspan="10" style="color:var(--ink3)">Kuch nahi mila</td></tr>');
 }
+/* ---------- ISSUE SLIP HISTORY (slip-wise, dept filter + print) ---------- */
 function prideRenderIssueReg(){
   const dept=document.getElementById('pride_ireg_dept').value;
   const dt=document.getElementById('pride_ireg_d').value;
   const pm=prideCanEdit();
-  const lines=[];
-  [...P_ISSUES].sort((a,b)=>(b.date||'').localeCompare(a.date||'')).forEach(s=>{
-    if(dept&&s.dept!==dept)return;if(dt&&s.date!==dt)return;
-    (s.items||[]).forEach(l=>lines.push({d:s.date,dept:s.dept,name:l.name,qty:l.qty,rate:l.rate,amt:l.amt,remark:s.remark||'',sid:s.id}));
-  });
-  const tot=prideR2(lines.reduce((a,l)=>a+l.amt,0));
-  document.getElementById('pride_ireg_table').innerHTML='<tr><th>Date</th><th>Dept</th><th>Item</th><th>Qty</th><th>Rate</th><th>Amount</th><th>Remark</th>'+(pm?'<th></th>':'')+'</tr>'+
-    (lines.slice(0,300).map(l=>'<tr><td>'+fmtD(l.d)+'</td><td>'+esc(l.dept)+'</td><td>'+esc(l.name)+'</td><td style="text-align:center">'+l.qty+'</td><td style="text-align:right">'+l.rate+'</td><td style="text-align:right">'+(+l.amt).toFixed(2)+'</td><td>'+esc(l.remark)+'</td>'+(pm?'<td><button class="btn btn-sm" onclick="prideIssueDel(\''+l.sid+'\')">🗑</button></td>':'')+'</tr>').join('')||'<tr><td colspan="8" style="color:var(--ink3)">Koi issue nahi</td></tr>')+
-    (lines.length?'<tr><td colspan="5" style="text-align:right"><b>TOTAL ('+lines.length+' lines)</b></td><td style="text-align:right"><b>'+inr(tot)+'</b></td><td colspan="2"></td></tr>':'');
+  const slips=[...P_ISSUES].sort((a,b)=>(b.date||'').localeCompare(a.date||'')||String(b.no||'').localeCompare(String(a.no||'')))
+    .filter(s=>(!dept||s.dept===dept)&&(!dt||s.date===dt));
+  const tot=prideR2(slips.reduce((a,s)=>a+(+s.total||0),0));
+  document.getElementById('pride_ireg_table').innerHTML='<tr><th>Slip No</th><th>Date</th><th>Dept</th><th>Items</th><th>Total</th><th>Remark</th><th></th></tr>'+
+    (slips.map(s=>'<tr><td><b>'+esc(s.no||'-')+'</b></td><td>'+fmtD(s.date)+'</td><td>'+esc(s.dept)+'</td><td style="text-align:center">'+(s.items||[]).length+'</td><td style="text-align:right"><b>'+inr(s.total)+'</b></td><td>'+esc(s.remark||'')+'</td>'+
+      '<td style="white-space:nowrap"><button class="btn btn-sm" onclick="prideSlipView(\''+s.id+'\')">👁</button> <button class="btn btn-sm" onclick="prideSlipPrint(\''+s.id+'\')">🖨</button>'+(pm?' <button class="btn btn-sm" onclick="prideIssueDel(\''+s.id+'\')">🗑</button>':'')+'</td></tr>').join('')||'<tr><td colspan="7" style="color:var(--ink3)">Koi issue slip nahi</td></tr>')+
+    (slips.length?'<tr><td colspan="4" style="text-align:right"><b>TOTAL ('+slips.length+' slips)</b></td><td style="text-align:right"><b>'+inr(tot)+'</b></td><td colspan="2"></td></tr>':'');
+  document.getElementById('pride_ireg_detail').innerHTML='';
+}
+function prideSlipHTML(s){
+  const body='<table style="width:100%;border-collapse:collapse;margin-bottom:10px"><tr>'+
+    '<td style="border:1px solid #000;padding:6px"><b>Slip No:</b> '+esc(s.no||'-')+'</td><td style="border:1px solid #000;padding:6px"><b>Date:</b> '+fmtD(s.date)+'</td></tr>'+
+    '<tr><td style="border:1px solid #000;padding:6px" colspan="2"><b>Department:</b> '+esc(s.dept)+(s.remark?' · <b>Remark:</b> '+esc(s.remark):'')+'</td></tr></table>'+
+    '<table style="width:100%;border-collapse:collapse">'+prideTHead(['S.No','Item','Qty','Unit','Rate (Rs.)','Amount (Rs.)'])+'<tbody>'+
+    (s.items||[]).map((l,i)=>{const it=prideItem(l.id);return '<tr>'+prideTCell(i+1,'center')+prideTCell(esc(l.name))+prideTCell(l.qty,'center')+prideTCell(it?esc(it.unit):'-','center')+prideTCell(l.rate,'right')+prideTCell((+l.amt).toFixed(2),'right')+'</tr>';}).join('')+
+    '<tr>'+prideTCell('<b>TOTAL</b>','right').replace('<td','<td colspan="5"')+prideTCell('<b>'+inr(s.total)+'</b>','right')+'</tr></tbody></table>'+
+    '<div style="display:flex;justify-content:space-between;margin-top:36px;font-size:13px"><div>Issued By<br><br>....................</div><div>Received By ('+esc(s.dept)+')<br><br>....................</div></div>';
+  return body;
+}
+function prideSlipView(id){
+  const s=P_ISSUES.find(x=>x.id===id);if(!s)return;
+  document.getElementById('pride_ireg_detail').innerHTML='<div class="card"><div class="card-head"><h3>🧾 '+(s.no||'')+' · '+esc(s.dept)+'</h3><button class="btn btn-sm" onclick="prideSlipPrint(\''+s.id+'\')">🖨 Print</button></div>'+
+    '<div class="card-body">'+prideSlipHTML(s)+'</div></div>';
+  document.getElementById('pride_ireg_detail').scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+function prideSlipPrint(id){
+  const s=P_ISSUES.find(x=>x.id===id);if(!s)return;
+  pridePrintHTML('Material Issue Slip '+(s.no||''),prideSlipHTML(s));
 }
 function prideIssueDel(sid){
   if(!prideNeedPM())return;
@@ -4516,12 +4682,16 @@ function prideExportAudit(){
   prideCSV('Pride_Audit_'+today()+'.csv',rows);toast('📊 Audit Excel download ho gaya');
 }
 function pridePrintStock(){
+  const rows=prideStoreRows();
+  if(!rows.length){toast('Print ke liye koi item nahi (filter khaali hai)',true);return;}
+  const flt=prideStoreFilterLabel();
   let tot=0;
   const body='<table style="width:100%;border-collapse:collapse">'+prideTHead(['S.No','Item','Cat','Unit','Rate','Open','Kharid','Issue','Stock','Value (Rs.)'])+'<tbody>'+
-    P_ITEMS.map((i,ix)=>{const bs=prideItemBuySell(i.id),st=P_STOCK[i.id]||0,val=prideR2(st*(+i.rate||0));tot=prideR2(tot+val);
+    rows.map((i,ix)=>{const bs=prideItemBuySell(i.id),st=P_STOCK[i.id]||0,val=prideR2(st*(+i.rate||0));tot=prideR2(tot+val);
       return '<tr>'+prideTCell(ix+1,'center')+prideTCell(esc(i.name))+prideTCell(i.cat,'center')+prideTCell(esc(i.unit),'center')+prideTCell(i.rate,'right')+prideTCell(i.openQty,'center')+prideTCell(bs.buy,'center')+prideTCell(bs.sell,'center')+prideTCell('<b>'+st+'</b>','center')+prideTCell(val.toFixed(2),'right')+'</tr>';}).join('')+
-    '<tr>'+prideTCell('<b>TOTAL</b>','right').replace('<td','<td colspan="9"')+prideTCell('<b>'+inr(tot)+'</b>','right')+'</tr></tbody></table>';
-  pridePrintHTML('Current Stock',body);
+    '<tr>'+prideTCell('<b>TOTAL ('+rows.length+' items)</b>','right').replace('<td','<td colspan="9"')+prideTCell('<b>'+inr(tot)+'</b>','right')+'</tr></tbody></table>';
+  pridePrintHTML('Current Stock'+(flt?' — '+flt:''),body);
+  toast('🖨 '+(flt?flt+' ka':'Poora')+' stock print ho raha hai');
 }
 
 /* ---------- init ---------- */
@@ -4534,6 +4704,142 @@ if(PRIDE_SEEDED)prideAudit('Opening stock load','157 items · 01-Oct-2026 · Rs.
   if(window._fbReady)onFb();
   ['pridePrint'].forEach(function(id){var el=document.getElementById(id);if(el){el.classList.add('print-sheet');document.body.appendChild(el);}});
 })();
+
+/* ---------- 15. BIN CARD ---------- */
+let PRIDE_BIN_CUR=null;
+function prideBinLedger(id){
+  const rows=[];
+  P_BILLS.forEach(b=>{(b.items||[]).forEach(l=>{if(l.id===id)rows.push({date:b.date,type:'R',part:'Receipt · '+b.vendor+' · Bill '+b.billNo,in:+l.qty||0,out:0});});});
+  P_ISSUES.forEach(s=>{(s.items||[]).forEach(l=>{if(l.id===id)rows.push({date:s.date,type:'I',part:'Issue · '+s.dept+(s.remark?' · '+s.remark:''),in:0,out:+l.qty||0});});});
+  rows.sort((a,b)=>(a.date||'').localeCompare(b.date||'')||(a.type<b.type?-1:1));
+  return rows;
+}
+function prideBinShow(){
+  const nm=(document.getElementById('pride_bin_q').value||'').trim();
+  const it=prideItemByName(nm);
+  if(!it){toast('Item nahi mila — list se chuno',true);return;}
+  PRIDE_BIN_CUR=it.id;
+  prideRenderBin();
+}
+function prideBinGo(id){
+  const it=prideItem(id);if(!it)return;
+  PRIDE_BIN_CUR=id;
+  const q=document.getElementById('pride_bin_q');if(q)q.value=it.name;
+  prideTab('bincard');
+}
+function prideRenderBin(){
+  const head=document.getElementById('pride_bin_head'),card=document.getElementById('pride_bin_card');
+  if(!head||!card)return;
+  const it=PRIDE_BIN_CUR?prideItem(PRIDE_BIN_CUR):null;
+  if(!it){head.innerHTML='';card.innerHTML='<div style="color:var(--ink3);font-size:13px">Upar item dhoondkar <b>Dikhao</b> dabao — uska bin card ban jayega. Store table me 🗂 dabane se bhi seedha khulta hai.</div>';return;}
+  const pm=prideCanEdit();
+  head.innerHTML='<div class="card" style="margin-bottom:10px"><div class="card-body">'+
+    '<div style="font-size:15px;font-weight:800;margin-bottom:8px">'+esc(it.name)+' <small style="color:var(--ink3);font-weight:400">'+it.cat+' · '+esc(it.unit)+' · Rate '+it.rate+'</small></div>'+
+    '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:end">'+
+    '<div><label style="font-size:11px;color:var(--ink3)">MFG Date</label><br><input id="pride_bin_mfg" class="smini" type="date" value="'+esc(it.mfg||'')+'" style="width:150px"'+(pm?'':' disabled')+'></div>'+
+    '<div><label style="font-size:11px;color:var(--ink3)">EXP Date</label><br><input id="pride_bin_exp" class="smini" type="date" value="'+esc(it.exp||'')+'" style="width:150px"'+(pm?'':' disabled')+'></div>'+
+    '<div><label style="font-size:11px;color:var(--ink3)">Location / Rack</label><br><input id="pride_bin_loc" class="smini" value="'+esc(it.loc||'')+'" placeholder="Rack no." style="width:140px"'+(pm?'':' disabled')+'></div>'+
+    (pm?'<button class="btn btn-primary btn-sm" onclick="prideBinSaveHead()">💾 Save</button>':'<span style="font-size:12px;color:var(--ink3)">Sirf PM edit kar sakta hai</span>')+
+    '</div></div></div>';
+  const rows=prideBinLedger(it.id);
+  let bal=prideR2(+it.openQty||0);
+  let h='<div class="table-scroll"><table><tr><th>Date</th><th>Particulars</th><th>Receipt</th><th>Issue</th><th>Balance</th></tr>';
+  h+='<tr><td style="text-align:center">'+fmtD('2026-10-01')+'</td><td><b>Opening Stock (01-Oct-2026)</b></td><td style="text-align:center">'+bal+'</td><td style="text-align:center">-</td><td style="text-align:center"><b>'+bal+'</b></td></tr>';
+  rows.forEach(r=>{
+    bal=prideR2(bal+r.in-r.out);
+    h+='<tr><td style="text-align:center">'+fmtD(r.date)+'</td><td>'+esc(r.part)+'</td><td style="text-align:center">'+(r.in?r.in:'-')+'</td><td style="text-align:center">'+(r.out?r.out:'-')+'</td><td style="text-align:center"><b>'+bal+'</b></td></tr>';
+  });
+  h+='</table></div>';
+  card.innerHTML=h;
+}
+function prideBinSaveHead(){
+  if(!prideNeedPM())return;
+  const it=prideItem(PRIDE_BIN_CUR);if(!it)return;
+  it.mfg=document.getElementById('pride_bin_mfg').value||'';
+  it.exp=document.getElementById('pride_bin_exp').value||'';
+  it.loc=(document.getElementById('pride_bin_loc').value||'').trim();
+  it.u=Date.now();
+  prideSaveAll([{kind:'items',doc:it}]);
+  prideAudit('Bin card edit',it.name+' · MFG '+(it.mfg||'-')+' · EXP '+(it.exp||'-')+' · Loc '+(it.loc||'-'));
+  toast('✅ Bin card save ho gaya');
+}
+function prideBinPrintCur(){
+  const it=PRIDE_BIN_CUR?prideItem(PRIDE_BIN_CUR):null;
+  if(!it){toast('Pehle item ka bin card dikhao',true);return;}
+  const rows=prideBinLedger(it.id);
+  let bal=prideR2(+it.openQty||0);
+  let body='<table style="width:100%;border-collapse:collapse;margin-bottom:10px"><tr>'+
+    prideTCell('<b>Item:</b> '+esc(it.name))+prideTCell('<b>Unit:</b> '+esc(it.unit))+prideTCell('<b>Category:</b> '+it.cat)+'</tr><tr>'+
+    prideTCell('<b>MFG:</b> '+(it.mfg?fmtD(it.mfg):'-'))+prideTCell('<b>EXP:</b> '+(it.exp?fmtD(it.exp):'-'))+prideTCell('<b>Location:</b> '+esc(it.loc||'-'))+'</tr></table>';
+  body+='<table style="width:100%;border-collapse:collapse">'+prideTHead(['Date','Particulars','Receipt Qty','Issue Qty','Balance'])+'<tbody>';
+  body+='<tr>'+prideTCell(fmtD('2026-10-01'),'center')+prideTCell('<b>Opening Stock</b>')+prideTCell(bal,'center')+prideTCell('-','center')+prideTCell('<b>'+bal+'</b>','center')+'</tr>';
+  rows.forEach(r=>{bal=prideR2(bal+r.in-r.out);
+    body+='<tr>'+prideTCell(fmtD(r.date),'center')+prideTCell(esc(r.part))+prideTCell(r.in?r.in:'-','center')+prideTCell(r.out?r.out:'-','center')+prideTCell('<b>'+bal+'</b>','center')+'</tr>';});
+  body+='</tbody></table>';
+  pridePrintHTML('Bin Card — '+it.name,body);
+}
+
+/* ---------- import: CSV file upload (pehle jaise) ---------- */
+function prideImpFileCh(ev){
+  const f=ev.target.files&&ev.target.files[0];ev.target.value='';
+  if(!f)return;
+  const r=new FileReader();
+  r.onload=()=>{document.getElementById('pride_imp_text').value=r.result;prideImpPreview();toast('📁 File load ho gayi — Preview dekho');};
+  r.readAsText(f,'UTF-8');
+}
+
+/* ---------- backup / restore ---------- */
+function prideBackup(silent){
+  if(!prideCanEdit()&&!silent){toast('Sirf PM backup le sakta hai',true);return;}
+  const data={app:'pride-hospitality',version:1,exportedAt:new Date().toISOString(),
+    counts:{items:P_ITEMS.length,bills:P_BILLS.length,issues:P_ISSUES.length,vendors:P_VENDORS.length},
+    items:P_ITEMS,bills:P_BILLS,issues:P_ISSUES,audit:P_AUDIT.slice(-500),vendors:P_VENDORS};
+  const blob=new Blob([JSON.stringify(data)],{type:'application/json'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+  a.download='Pride_Backup_'+today()+'.json';
+  document.body.appendChild(a);a.click();
+  setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},500);
+  if(!silent)toast('💾 Backup download ho gaya');
+}
+function prideValidateBackup(data){
+  return !!(data&&Array.isArray(data.items)&&Array.isArray(data.bills)&&Array.isArray(data.issues));
+}
+function prideRestoreFile(ev){
+  if(!prideNeedPM())return;
+  const f=ev.target.files&&ev.target.files[0];ev.target.value='';
+  if(!f)return;
+  const r=new FileReader();
+  r.onload=()=>{
+    let data;try{data=JSON.parse(r.result);}catch(e){toast('File samajh nahi aayi',true);return;}
+    if(!prideValidateBackup(data)){toast('Ye Pride backup file nahi lagti',true);return;}
+    if(!confirm('Restore karein?\n\nBackup me: '+data.items.length+' items, '+data.bills.length+' bills, '+data.issues.length+' issues\nAbhi app me: '+P_ITEMS.length+' items, '+P_BILLS.length+' bills, '+P_ISSUES.length+' issues\n\nSafety ke liye pehle maujooda data ka backup download hoga.'))return;
+    prideBackup(true);
+    prideRestoreDo(data);
+  };
+  r.readAsText(f,'UTF-8');
+}
+async function prideRestoreDo(data){
+  P_ITEMS=data.items;P_BILLS=data.bills;P_ISSUES=data.issues;
+  P_AUDIT=Array.isArray(data.audit)?data.audit:[];
+  P_VENDORS=Array.isArray(data.vendors)?data.vendors:[];
+  prideBackfillSlipNos();
+  prideRecalc();prideSaveLocal();prideFillItemDL();prideFillVendors();
+  try{
+    if(window._fbReady&&window._fb&&window._fb.saveToCol&&window._fb.loadCol){
+      const cols=[['items',P_ITEMS],['bills',P_BILLS],['issues',P_ISSUES],['vendors',P_VENDORS]];
+      for(let ci=0;ci<cols.length;ci++){
+        const kind=cols[ci][0],arr=cols[ci][1];
+        const cloud=await window._fb.loadCol(PRIDE_FB[kind]);
+        const keep={};arr.forEach(d=>{if(d&&d.id)keep[d.id]=1;});
+        if(cloud)for(let i=0;i<cloud.length;i++){const d=cloud[i];if(d&&d.id&&!keep[d.id]){try{await window._fb.deleteFromCol(PRIDE_FB[kind],d.id);}catch(e){}}}
+        for(let i=0;i<arr.length;i++){try{window._fb.saveToCol(PRIDE_FB[kind],arr[i].id,arr[i]);}catch(e){}}
+      }
+    }
+  }catch(e){}
+  prideAudit('Restore',data.items.length+' items · '+data.bills.length+' bills · '+data.issues.length+' issues wapas aaye');
+  if(PRIDE_TAB)prideRender();
+  toast('✅ Restore ho gaya');
+}
 
 </script>
 </body>
