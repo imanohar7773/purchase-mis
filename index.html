@@ -1205,6 +1205,35 @@ tfoot td{font-weight:800;background:#f0f5f3;border-top:2px solid var(--teal);fon
           <div><h4 style="margin:6px 0">Haal ke Issues</h4><div class="table-scroll"><table id="pride_dash_issues"></table></div></div>
         </div>
       </div></div>
+    <div class="card" style="margin-top:12px"><div class="card-head"><h2>🏢 Corporate Reports</h2>
+      <div style="display:flex;gap:6px;align-items:center">
+        <button class="btn btn-sm" onclick="prideCorpMonthNav(-1)">‹</button>
+        <input id="pride_corp_month" type="month" class="smini" style="width:150px" onchange="prideCorpDash()">
+        <button class="btn btn-sm" onclick="prideCorpMonthNav(1)">›</button>
+      </div></div>
+      <div class="card-body">
+        <div id="pride_corp_kpis" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:12px"></div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px;margin-bottom:12px">
+          <div><div class="sec-title">Top Vendors (Purchase)</div><div class="card"><div class="card-body" id="pride_corp_chart_vendor"></div></div></div>
+          <div><div class="sec-title">Top Departments (Consumption)</div><div class="card"><div class="card-body" id="pride_corp_chart_dept"></div></div></div>
+        </div>
+        <div class="sec-title">Department Breakdown (Consumption)</div>
+        <div class="card" style="margin-bottom:12px"><div class="table-scroll"><table id="pride_corp_tbl_dept"></table></div></div>
+        <div class="sec-title">Group Breakdown (Purchase)</div>
+        <div class="card" style="margin-bottom:12px"><div class="table-scroll"><table id="pride_corp_tbl_grp"></table></div></div>
+        <div class="sec-title">Detail Reports</div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:8px;margin-bottom:10px">
+          <button class="btn btn-sm" onclick="prideCorpRun('corp_consumption')">📊 Monthly Consumption</button>
+          <button class="btn btn-sm" onclick="prideCorpRun('corp_stockval')">💰 Stock Valuation</button>
+          <button class="btn btn-sm" onclick="prideCorpRun('corp_purch_summary')">📈 Purchase Summary</button>
+          <button class="btn btn-sm" onclick="prideCorpRun('corp_variance')">⚖️ Variance Report</button>
+          <button class="btn btn-sm" onclick="prideCorpRun('corp_supplier_perf')">🏭 Supplier Performance</button>
+          <button class="btn btn-sm" onclick="prideCorpRun('corp_costcenter')">🏢 Cost Center</button>
+          <button class="btn btn-sm" onclick="prideCorpRun('corp_deadstock')">🐌 Slow/Dead Stock</button>
+          <button class="btn btn-sm" onclick="prideCorpRun('corp_mis')">📋 Monthly MIS</button>
+        </div>
+        <div id="pride_corp_out"></div>
+      </div></div>
   </div>
 
   <!-- 2. IMPORT BILL -->
@@ -4164,7 +4193,121 @@ function prideRenderDash(){
   const si=[...P_ISSUES].sort((a,b)=>(b.date||'').localeCompare(a.date||'')).slice(0,5);
   document.getElementById('pride_dash_issues').innerHTML='<tr><th>Date</th><th>Dept</th><th>Items</th><th>Total</th></tr>'+
     (si.map(s=>'<tr><td>'+fmtD(s.date)+'</td><td>'+esc(s.dept)+'</td><td style="text-align:center">'+(s.items||[]).length+'</td><td style="text-align:right">'+inr(s.total)+'</td></tr>').join('')||'<tr><td colspan="4" style="color:var(--ink3)">Koi issue nahi</td></tr>');
+  const _cm=document.getElementById('pride_corp_month');if(_cm&&!_cm.value)_cm.value=today().slice(0,7);
+  prideCorpDash();
 }
+/* ================= CORPORATE REPORTS (dashboard) ================= */
+let PRIDE_CORP_CUR=null;
+function prideCorpBar(agg,color){
+  if(!agg.length)return '<div style="color:var(--ink3);font-size:12px">Koi data nahi</div>';
+  const mx=agg[0].v||1;
+  return agg.map(v=>'<div class="bar-row"><div class="bar-lbl" title="'+esc(v.k)+'">'+esc(v.k)+'</div><div class="bar-track"><div class="bar-fill" style="width:'+(v.v/mx*100).toFixed(1)+'%;background:'+color+'"></div></div><div class="bar-val">'+inr0(v.v)+'</div></div>').join('');
+}
+function prideCorpMonthNav(d){
+  const el=document.getElementById('pride_corp_month');
+  const v=el.value||today().slice(0,7);
+  let y=+v.slice(0,4), m=+v.slice(5,7)+d;
+  if(m<1){m=12;y--;} if(m>12){m=1;y++;}
+  el.value=y+'-'+String(m).padStart(2,'0');
+  prideCorpDash();
+}
+function prideCorpDash(){
+  const d=prideCorpMonth();
+  const bills=prideBillsIn(d.from,d.to), issues=prideIssuesIn(d.from,d.to);
+  const pur=prideR2(bills.reduce((a,b)=>a+(+b.total||0),0));
+  let con=0; const deptM={}, venM={}, grpM={};
+  issues.forEach(s=>{const dp=s.dept||'—';deptM[dp]=deptM[dp]||{s:0,q:0,v:0};deptM[dp].s++;
+    (s.items||[]).forEach(l=>{const v=prideR2((+l.qty||0)*(+l.rate||0));con=prideR2(con+v);
+      deptM[dp].q=prideR2(deptM[dp].q+(+l.qty||0));deptM[dp].v=prideR2(deptM[dp].v+v);});});
+  bills.forEach(b=>{const vn=b.vendor||'—';venM[vn]=prideR2((venM[vn]||0)+(+b.total||0));
+    (b.items||[]).forEach(l=>{const g=prideRepCat(l.id)||'—';grpM[g]=grpM[g]||{b:{},i:0,v:0};
+      grpM[g].v=prideR2(grpM[g].v+prideRepLineVal(l));grpM[g].i++;grpM[g].b[b.id]=1;});});
+  let closeV=0;
+  P_ITEMS.forEach(it=>{const r=prideLastRate(it.id)||prideOldRate(it.name)||(+it.rate||0);closeV=prideR2(closeV+(P_STOCK[it.id]||0)*r);});
+  document.getElementById('pride_corp_kpis').innerHTML=
+    prideKPI('Total Purchase',inr(pur),bills.length+' bills')+
+    prideKPI('Consumption',inr(con),issues.length+' slips')+
+    prideKPI('Closing Stock Value',inr(closeV),P_ITEMS.length+' items')+
+    prideKPI('Vendors',Object.keys(venM).length,'is mahine')+
+    prideKPI('Departments',Object.keys(deptM).length,'consumption wale');
+  const tv=Object.keys(venM).map(k=>({k:k,v:venM[k]})).sort((a,b)=>b.v-a.v).slice(0,8);
+  const td=Object.keys(deptM).map(k=>({k:k,v:deptM[k].v})).sort((a,b)=>b.v-a.v).slice(0,8);
+  document.getElementById('pride_corp_chart_vendor').innerHTML=prideCorpBar(tv,'var(--teal)');
+  document.getElementById('pride_corp_chart_dept').innerHTML=prideCorpBar(td,'var(--amber)');
+  const dt=Object.keys(deptM).map(k=>({k:k,s:deptM[k].s,q:deptM[k].q,v:deptM[k].v})).sort((a,b)=>b.v-a.v);
+  document.getElementById('pride_corp_tbl_dept').innerHTML=
+    '<tr><th>Name</th><th>Slips</th><th>Qty</th><th>Value</th><th>Share%</th></tr>'+
+    (dt.map(r=>'<tr><td>'+esc(r.k)+'</td><td style="text-align:center">'+r.s+'</td><td style="text-align:center">'+r.q+'</td><td style="text-align:right">'+inr(r.v)+'</td><td style="text-align:right">'+(con?(r.v/con*100).toFixed(1)+'%':'—')+'</td></tr>').join('')||'<tr><td colspan="5" style="color:var(--ink3)">Koi data nahi</td></tr>')+
+    (dt.length?'<tr style="background:#eef5f2;font-weight:800"><td>TOTAL</td><td style="text-align:center">'+dt.reduce((a,r)=>a+r.s,0)+'</td><td style="text-align:center">'+prideR2(dt.reduce((a,r)=>a+r.q,0))+'</td><td style="text-align:right">'+inr(con)+'</td><td style="text-align:right">100%</td></tr>':'');
+  const gt=Object.keys(grpM).map(k=>({k:k,b:Object.keys(grpM[k].b).length,i:grpM[k].i,v:grpM[k].v})).sort((a,b)=>b.v-a.v);
+  document.getElementById('pride_corp_tbl_grp').innerHTML=
+    '<tr><th>Name</th><th>Bills</th><th>Items</th><th>Value</th><th>Share%</th></tr>'+
+    (gt.map(r=>'<tr><td>'+esc(r.k)+'</td><td style="text-align:center">'+r.b+'</td><td style="text-align:center">'+r.i+'</td><td style="text-align:right">'+inr(r.v)+'</td><td style="text-align:right">'+(pur?(r.v/pur*100).toFixed(1)+'%':'—')+'</td></tr>').join('')||'<tr><td colspan="5" style="color:var(--ink3)">Koi data nahi</td></tr>')+
+    (gt.length?'<tr style="background:#eef5f2;font-weight:800"><td>TOTAL</td><td style="text-align:center">—</td><td style="text-align:center">'+gt.reduce((a,r)=>a+r.i,0)+'</td><td style="text-align:right">'+inr(pur)+'</td><td style="text-align:right">100%</td></tr>':'');
+}
+function prideCorpMonth(){
+  const v=(document.getElementById('pride_corp_month')||{}).value||today().slice(0,7);
+  const y=+v.slice(0,4), m=+v.slice(5,7);
+  const last=new Date(y,m,0).getDate();
+  return {from:v+'-01',to:v+'-'+String(last).padStart(2,'0')};
+}
+function prideCorpRun(id){
+  if(id==='corp_variance'){prideCorpVariance();return;}
+  const d=prideCorpMonth();
+  const r=PRIDE_REP_FNS[id](d.from,d.to);
+  if(!r)return;
+  PRIDE_CORP_CUR={title:r.title,sub:r.sub,cols:r.cols,rows:r.rows,foot:r.foot};
+  const box=document.getElementById('pride_corp_out');
+  box.innerHTML='<div style="margin-bottom:8px"><b style="font-size:15px">'+r.title+'</b><div style="font-size:12px;color:var(--ink3)">'+r.sub+' · '+r.rows.length+' rows</div>'+
+    '<div style="margin-top:6px;display:flex;gap:8px"><button class="btn btn-sm" onclick="prideCorpPrint()">🖨 Print</button><button class="btn btn-sm" onclick="prideCorpCSV()">📊 Excel</button></div></div>'+
+    '<div class="table-scroll"><table><tr>'+r.cols.map(c=>'<th>'+c+'</th>').join('')+'</tr>'+
+    r.rows.slice(0,500).map(x=>'<tr>'+x.map(c=>'<td>'+c+'</td>').join('')+'</tr>').join('')+
+    (r.foot?'<tr style="background:#eef5f2;font-weight:800">'+r.foot.map(c=>'<td>'+c+'</td>').join('')+'</tr>':'')+
+    '</table></div>'+(r.rows.length>500?'<div style="font-size:12px;color:var(--ink3);margin-top:4px">Pehli 500 rows — poori Excel me</div>':'');
+  box.scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+function prideCorpPrint(){
+  const c=PRIDE_CORP_CUR;if(!c||!c.rows.length){toast('Pehle report chalao',true);return;}
+  pridePrintHTML(c.title,'<div style="margin-bottom:8px;font-size:13px">'+c.sub+'</div><table style="width:100%;border-collapse:collapse">'+prideTHead(c.cols)+'<tbody>'+
+    c.rows.map(x=>'<tr>'+x.map(v=>prideTCell(v)).join('')+'</tr>').join('')+'</tbody>'+
+    (c.foot?'<tfoot><tr style="font-weight:800">'+c.foot.map(v=>prideTCell(v)).join('')+'</tr></tfoot>':'')+'</table>');
+}
+function prideCorpCSV(){
+  const c=PRIDE_CORP_CUR;if(!c||!c.rows.length){toast('Pehle report chalao',true);return;}
+  prideCSV(c.title.replace(/[^a-z0-9]+/gi,'_')+'.csv',[[c.title],[c.sub],[],c.cols].concat(c.rows).concat(c.foot?[c.foot]:[]));
+  toast('📊 Excel download ho gaya');
+}
+function prideCorpVariance(){
+  const d=prideCorpMonth();
+  const items=P_ITEMS.filter(it=>(P_STOCK[it.id]||0)!==0).sort((a,b)=>a.name.localeCompare(b.name));
+  const box=document.getElementById('pride_corp_out');
+  box.innerHTML='<div style="margin-bottom:8px"><b style="font-size:15px">⚖️ Variance Report — Physical vs System</b><div style="font-size:12px;color:var(--ink3)">Date: '+fmtD(d.from)+' se '+fmtD(d.to)+' · Counted Qty bharkar Calculate dabao</div>'+
+    '<div style="margin:6px 0;display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-primary btn-sm" onclick="prideCorpVarCalc()">🧮 Calculate</button><button class="btn btn-sm" onclick="prideCorpPrint()">🖨 Print</button><button class="btn btn-sm" onclick="prideCorpCSV()">📊 Excel</button></div></div>'+
+    '<div class="table-scroll"><table><tr><th>Item</th><th>Unit</th><th>System Qty</th><th>Counted Qty</th><th>Variance</th><th>Rate ₹</th><th>Var Value ₹</th></tr>'+
+    items.map(it=>{const q=P_STOCK[it.id]||0;const r=prideLastRate(it.id)||prideOldRate(it.name)||(+it.rate||0);
+      return '<tr data-id="'+it.id+'" data-rate="'+r+'"><td><b>'+esc(it.name)+'</b></td><td>'+esc(it.unit||'')+'</td><td style="text-align:center" class="vc_sys">'+q+'</td><td><input class="smini vc_cnt" type="number" step="any" placeholder="0" style="width:90px"></td><td style="text-align:center" class="vc_var">—</td><td style="text-align:right">'+_n2(r)+'</td><td style="text-align:right" class="vc_val">—</td></tr>';}).join('')+
+    '</table></div><div id="pride_corp_var_tot" style="margin-top:8px;font-weight:800"></div>';
+  PRIDE_CORP_CUR=null;
+  box.scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+function prideCorpVarCalc(){
+  const d=prideCorpMonth();
+  const rows=[];let tv=0;
+  document.querySelectorAll('#pride_corp_out tr[data-id]').forEach(tr=>{
+    const sys=+tr.querySelector('.vc_sys').textContent||0;
+    const cnt=numParse(tr.querySelector('.vc_cnt').value);
+    const rate=+tr.dataset.rate||0;
+    const v=prideR2(cnt-sys), vv=prideR2(v*rate);
+    tr.querySelector('.vc_var').innerHTML='<b style="color:'+(v<0?'#c0392b':v>0?'#1e7e34':'inherit')+'">'+v+'</b>';
+    tr.querySelector('.vc_val').textContent=_n2(vv);
+    tv=prideR2(tv+vv);
+    rows.push([tr.cells[0].textContent,sys,cnt,v,_n2(rate),_n2(vv)]);
+  });
+  document.getElementById('pride_corp_var_tot').textContent='Kul Variance Value: '+_n2(tv);
+  PRIDE_CORP_CUR={title:'Variance Report — Physical vs System',sub:'Date: '+fmtD(d.from)+' se '+fmtD(d.to),cols:['Item','System Qty','Counted Qty','Variance','Rate ₹','Var Value ₹'],rows:rows,foot:['','','','','KUL',_n2(tv)]};
+  toast('✅ Variance calculate ho gaya');
+}
+
 
 /* ---------- 2. IMPORT BILL ---------- */
 let PRIDE_IMP_PREV=null;
@@ -5321,7 +5464,15 @@ const PRIDE_REPORTS=[
  {id:'current_stock',g:'Store',n:'Current Stock Report'},
  {id:'req_report',g:'Store',n:'Purchase Requisition Report'},
  {id:'req_pending',g:'Store',n:'Pending Request Report'},
- {id:'req_ledger',g:'Store',n:'Request And Issue (Ledger Wise)'}
+ {id:'req_ledger',g:'Store',n:'Request And Issue (Ledger Wise)'},
+ {id:'corp_consumption',g:'Corporate',n:'Monthly Consumption Report'},
+ {id:'corp_stockval',g:'Corporate',n:'Stock Valuation Report'},
+ {id:'corp_purch_summary',g:'Corporate',n:'Management Purchase Summary'},
+ {id:'corp_variance',g:'Corporate',n:'Variance Report (Physical vs System)'},
+ {id:'corp_supplier_perf',g:'Corporate',n:'Supplier Performance Report'},
+ {id:'corp_costcenter',g:'Corporate',n:'Cost Center Report'},
+ {id:'corp_deadstock',g:'Corporate',n:'Slow / Non-moving / Dead Stock'},
+ {id:'corp_mis',g:'Corporate',n:'Monthly MIS — One Pager'}
 ];
 let PRIDE_REP_CUR=null;
 function prideRepDates(){
@@ -5505,6 +5656,90 @@ function rep_current_stock(){
   const tv=rows.reduce((a,r)=>a+parseFloat(r[5]),0);
   return {title:'Current Stock Report',sub:'Aaj ka stock · '+fmtD(today()),cols:['Item','Group','Unit','Stock','Rate','Stock Value'],rows:rows,foot:['TOTAL','','','','',_n2(tv)]};
 }
+/* ================= CORPORATE REPORTS ================= */
+function rep_corp_consumption(from,to){
+  const rows=[];
+  prideIssuesIn(from,to).forEach(s=>{(s.items||[]).forEach(l=>{
+    const v=prideR2((+l.qty||0)*(+l.rate||0));
+    rows.push([s.dept||'—',fmtD(s.date),l.name,prideR2(+l.qty||0),_n2(v),v]);
+  });});
+  rows.sort((a,b)=>a[0].localeCompare(b[0])||a[2].localeCompare(b[2]));
+  const tot=prideR2(rows.reduce((a,r)=>a+r[5],0));
+  return {title:'Monthly Consumption Report',sub:_ds(from,to),cols:['Department','Date','Item','Qty','Value ₹'],
+    rows:rows.map(r=>r.slice(0,5)),foot:['','','','KUL',_n2(tot)]};
+}
+function rep_corp_stockval(from,to){
+  const rows=P_ITEMS.map(it=>{
+    const q=P_STOCK[it.id]||0;
+    const r=prideLastRate(it.id)||prideOldRate(it.name)||(+it.rate||0);
+    const v=prideR2(q*r);
+    return [it.name,it.cat||'—',it.unit||'',q,_n2(r),_n2(v),v,q];
+  }).filter(r=>r[7]!==0);
+  rows.sort((a,b)=>b[6]-a[6]);
+  const tot=prideR2(rows.reduce((a,r)=>a+r[6],0));
+  return {title:'Stock Valuation Report',sub:_ds(from,to)+' · Rate: last purchase rate',cols:['Item','Group','Unit','Stock Qty','Rate ₹','Value ₹'],
+    rows:rows.map(r=>r.slice(0,6)),foot:['','','','','KUL',_n2(tot)]};
+}
+function rep_corp_purch_summary(from,to){
+  const bills=prideBillsIn(from,to);
+  const tot=prideR2(bills.reduce((a,b)=>a+(+b.total||0),0));
+  const vm={};
+  bills.forEach(b=>{const k=b.vendor||'—';vm[k]=vm[k]||{b:0,v:0};vm[k].b++;vm[k].v=prideR2(vm[k].v+(+b.total||0));});
+  const rows=Object.keys(vm).map(k=>[k,vm[k].b,_n2(vm[k].v),tot?prideR2(vm[k].v/tot*100).toFixed(1)+' %':'0 %',vm[k].v]).sort((a,b)=>b[4]-a[4]);
+  return {title:'Management Purchase Summary',sub:_ds(from,to)+' · Kul kharid '+_n2(tot)+' · '+bills.length+' bills · '+Object.keys(vm).length+' vendors',
+    cols:['Vendor','Bills','Total Value ₹','Share %'],rows:rows.map(r=>r.slice(0,4)),
+    foot:['KUL',bills.length,_n2(tot),'100 %']};
+}
+function rep_corp_supplier_perf(from,to){
+  const bills=prideBillsIn(from,to);
+  const m={};
+  bills.forEach(b=>{const k=b.vendor||'—';m[k]=m[k]||{b:0,v:0,items:0,last:''};
+    m[k].b++;m[k].v=prideR2(m[k].v+(+b.total||0));m[k].items+=(b.items||[]).length;
+    if((b.date||'')>(m[k].last||''))m[k].last=b.date;});
+  const rows=Object.keys(m).map(k=>{const e=m[k];
+    return [k,e.b,_n2(e.v),e.items,fmtD(e.last),_n2(prideR2(e.v/e.b)),e.v];}).sort((a,b)=>b[6]-a[6]);
+  return {title:'Supplier Performance Report',sub:_ds(from,to),cols:['Vendor','Bills','Total Value ₹','Items','Last Purchase','Avg Bill ₹'],
+    rows:rows.map(r=>r.slice(0,6))};
+}
+function rep_corp_costcenter(from,to){
+  const m={};
+  prideIssuesIn(from,to).forEach(s=>{const d=s.dept||'—';m[d]=m[d]||{s:0,q:0,v:0};m[d].s++;
+    (s.items||[]).forEach(l=>{m[d].q=prideR2(m[d].q+(+l.qty||0));m[d].v=prideR2(m[d].v+(+l.qty||0)*(+l.rate||0));});});
+  const tot=prideR2(Object.keys(m).reduce((a,k)=>a+m[k].v,0));
+  const rows=Object.keys(m).map(k=>[k,m[k].s,prideR2(m[k].q),_n2(m[k].v),tot?prideR2(m[k].v/tot*100).toFixed(1)+' %':'0 %',m[k].v]).sort((a,b)=>b[5]-a[5]);
+  return {title:'Cost Center Report — Department-wise Kharcha',sub:_ds(from,to),cols:['Department','Issue Slips','Total Qty','Kharcha ₹','Share %'],
+    rows:rows.map(r=>r.slice(0,5)),foot:['KUL','','',_n2(tot),'100 %']};
+}
+function rep_corp_deadstock(from,to){
+  const lastIss={};
+  P_ISSUES.forEach(s=>{(s.items||[]).forEach(l=>{if((s.date||'')>(lastIss[l.id]||''))lastIss[l.id]=s.date;});});
+  const rows=[];
+  P_ITEMS.forEach(it=>{
+    const q=P_STOCK[it.id]||0;if(q<=0)return;
+    const r=prideLastRate(it.id)||prideOldRate(it.name)||(+it.rate||0);
+    const li=lastIss[it.id]||'';
+    const days=li?Math.round((new Date(to)-new Date(li))/86400000):99999;
+    const st=days>90?'Dead':days>60?'Non-moving':days>30?'Slow':'Moving';
+    rows.push([it.name,it.cat||'—',q,_n2(r),_n2(prideR2(q*r)),li?fmtD(li):'—',days>90000?'—':days,st,prideR2(q*r)]);
+  });
+  rows.sort((a,b)=>b[9]-a[9]);
+  const tot=prideR2(rows.filter(r=>r[7]!=='Moving').reduce((a,r)=>a+r[9],0));
+  return {title:'Slow / Non-moving / Dead Stock Report',sub:_ds(from,to)+' · Slow: 30-60 din · Non-moving: 60-90 din · Dead: 90+ din bina issue',
+    cols:['Item','Group','Stock Qty','Rate ₹','Stock Value ₹','Last Issue','Days','Status'],
+    rows:rows.map(r=>r.slice(0,8)),foot:['','','','','KUL: '+_n2(tot),'','','']};
+}
+function rep_corp_mis(from,to){
+  const bills=prideBillsIn(from,to);
+  const pur=prideR2(bills.reduce((a,b)=>a+(+b.total||0),0));
+  let con=0;
+  prideIssuesIn(from,to).forEach(s=>{(s.items||[]).forEach(l=>{con=prideR2(con+(+l.qty||0)*(+l.rate||0));});});
+  let close=0;
+  P_ITEMS.forEach(it=>{const r=prideLastRate(it.id)||prideOldRate(it.name)||(+it.rate||0);close=prideR2(close+(P_STOCK[it.id]||0)*r);});
+  const open=prideR2(close-pur+con);
+  return {title:'Monthly MIS — One Pager',sub:_ds(from,to),
+    cols:['Head','Value ₹'],
+    rows:[['Opening Stock Value',_n2(open)],['(+) Purchases (month)',_n2(pur)],['(−) Consumption (month)',_n2(con)],['(=) Closing Stock Value',_n2(close)],['Bills (month)',bills.length],['Issue Slips (month)',prideIssuesIn(from,to).length]]};
+}
 function rep_req_report(from,to){
   const rows=P_REQS.filter(r=>(r.date||'')>=from&&(r.date||'')<=to).sort((a,b)=>(a.date||'').localeCompare(b.date||''))
     .map(r=>[r.date,fmtD(r.date),r.no,r.dept||'',(r.items||[]).length,prideR2((r.items||[]).reduce((a,l)=>a+(+l.qty||0),0)),prideReqStatus(r)]);
@@ -5526,7 +5761,7 @@ function rep_req_ledger(from,to){
   rows.sort((a,b)=>a[0].localeCompare(b[0]));
   return {title:'Request And Issue (Ledger Wise)',sub:_ds(from,to),cols:['Date','Req No','Item','Req Qty','Issued Qty','Pending Qty','Issue Refs'],rows:rows.map(r=>r.slice(1))};
 }
-const PRIDE_REP_FNS={pur_detail:rep_pur_detail,pur_recv_sum:rep_pur_recv_sum,pur_register:rep_pur_register,stock_summary:rep_stock_summary,tax_register:rep_tax_register,tax_register_v:rep_tax_register_v,grn_report:rep_grn_report,grp_pur:(f,t)=>rep_grp_pur(f,t,''),pur_group_sum:()=>null,pur_supp_matrix:rep_pur_supp_matrix,daily_txn:rep_daily_txn,daily_txn_sum:rep_daily_txn_sum,dept_issue:(f,t)=>rep_dept_issue(f,t,false),dept_issue_sum:(f,t)=>rep_dept_issue(f,t,true),issue_detail:rep_issue_detail,item_issue:(f,t)=>rep_item_issue(f,t,false),item_issue_sum:(f,t)=>rep_item_issue(f,t,true),item_receipt:rep_item_receipt,abc_qty:(f,t)=>rep_abc(f,t,false),abc_val:(f,t)=>rep_abc(f,t,true),nonmoving:rep_nonmoving,minmax:()=>rep_minmax(),ageing:rep_ageing,excess_short:()=>rep_excess_short(),current_stock:()=>rep_current_stock(),req_report:rep_req_report,req_pending:rep_req_pending,req_ledger:rep_req_ledger};
+const PRIDE_REP_FNS={pur_detail:rep_pur_detail,pur_recv_sum:rep_pur_recv_sum,pur_register:rep_pur_register,stock_summary:rep_stock_summary,tax_register:rep_tax_register,tax_register_v:rep_tax_register_v,grn_report:rep_grn_report,grp_pur:(f,t)=>rep_grp_pur(f,t,''),pur_group_sum:()=>null,pur_supp_matrix:rep_pur_supp_matrix,daily_txn:rep_daily_txn,daily_txn_sum:rep_daily_txn_sum,dept_issue:(f,t)=>rep_dept_issue(f,t,false),dept_issue_sum:(f,t)=>rep_dept_issue(f,t,true),issue_detail:rep_issue_detail,item_issue:(f,t)=>rep_item_issue(f,t,false),item_issue_sum:(f,t)=>rep_item_issue(f,t,true),item_receipt:rep_item_receipt,abc_qty:(f,t)=>rep_abc(f,t,false),abc_val:(f,t)=>rep_abc(f,t,true),nonmoving:rep_nonmoving,minmax:()=>rep_minmax(),ageing:rep_ageing,excess_short:()=>rep_excess_short(),current_stock:()=>rep_current_stock(),req_report:rep_req_report,req_pending:rep_req_pending,req_ledger:rep_req_ledger,corp_consumption:rep_corp_consumption,corp_stockval:rep_corp_stockval,corp_purch_summary:rep_corp_purch_summary,corp_variance:()=>null,corp_supplier_perf:rep_corp_supplier_perf,corp_costcenter:rep_corp_costcenter,corp_deadstock:rep_corp_deadstock,corp_mis:rep_corp_mis};
 function prideRepInit(){
   const sel=document.getElementById('pride_rep_sel');
   if(sel&&!sel.options.length){
