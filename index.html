@@ -1349,7 +1349,9 @@ tfoot td{font-weight:800;background:#f0f5f3;border-top:2px solid var(--teal);fon
   <!-- 11. PRODUCTS -->
   <div id="pride-products" class="pride-sub hide">
     <div class="card"><div class="card-head"><h2>📦 Products — Item Master</h2>
-      <button class="btn btn-primary btn-sm pm-only" onclick="prideProdAdd()">＋ Naya Item</button></div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+      <button class="btn btn-sm pm-only" onclick="prideImportOldItems()">📥 Purane Items (Apr–Sep)</button>
+      <button class="btn btn-primary btn-sm pm-only" onclick="prideProdAdd()">＋ Naya Item</button></div></div>
       <div class="card-body">
         <div style="display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap">
           <input id="pride_pq" class="smini" placeholder="🔍 item" style="flex:1;min-width:180px" oninput="prideRenderProducts()">
@@ -4259,9 +4261,65 @@ function prideLastRateMap(){
   PRIDE_LR_CACHE=m;return m;
 }
 function prideLastRate(id){return prideLastRateMap()[id]||0;}
+/* purane Purchase MIS (ginger_pm_v2) se read-only lookup — purana data kabhi touch nahi hota */
+let PRIDE_OLDMAP_CACHE=null;
+function prideOldItemMap(){
+  if(PRIDE_OLDMAP_CACHE)return PRIDE_OLDMAP_CACHE;
+  const m={};
+  try{
+    const v=localStorage.getItem('ginger_pm_v2');
+    const rows=v?JSON.parse(v):[];
+    rows.forEach(r=>{
+      const nm=String(r.item||'').trim();if(!nm)return;
+      const k=norm(nm),d=r.purchaseDate||'';
+      const e=m[k];
+      if(!e||d>(e.date||''))m[k]={name:nm,unit:r.unit||'',group:r.group||'',rate:+r.rate||0,date:d};
+    });
+  }catch(e){}
+  PRIDE_OLDMAP_CACHE=m;return m;
+}
+function prideOldRate(name){const e=prideOldItemMap()[norm(name||'')];return e?e.rate||0:0;}
+function prideEnsureItem(name,fb){
+  let it=prideItemByName(name);
+  if(it)return it;
+  fb=fb||{};
+  it={id:uid(),name:name,cat:fb.cat||'',unit:String(fb.unit||'PCS').toUpperCase(),rate:+fb.rate||0,taxPct:+fb.taxPct||0,mrp:+fb.mrp||0,openQty:0,u:Date.now()};
+  P_ITEMS.push(it);
+  prideSaveAll([{kind:'items',doc:it}]);
+  prideAudit('Item master (auto)',name);
+  return it;
+}
 function prideItemList(q){
-  return P_ITEMS.filter(i=>norm(i.name).includes(q)).map(it=>{const lr=prideLastRate(it.id);
-    return {h:esc(it.name),s:it.cat+' · '+esc(it.unit)+' · ₹'+(lr||it.rate||0),it:it};});
+  q=norm(q||'');
+  return P_ITEMS.filter(i=>norm(i.name).includes(q)).map(it=>{const lr=prideLastRate(it.id)||prideOldRate(it.name);
+    return {h:esc(it.name),s:it.cat+' · '+esc(it.unit)+' · ₹'+(lr||it.rate||0),it:it};}).slice(0,20);
+}
+/* April–Sept ke purane bills se poori item list Pride master me lao (ek baar) */
+function prideImportOldItems(){
+  if(!prideNeedPM())return;
+  const have={};P_ITEMS.forEach(i=>{have[norm(i.name)]=1;});
+  const m={};
+  try{
+    const v=localStorage.getItem('ginger_pm_v2');
+    const all=v?JSON.parse(v):[];
+    all.forEach(r=>{
+      const d=r.purchaseDate||'';
+      if(d<'2026-04-01'||d>'2026-09-30')return;
+      const nm=String(r.item||'').trim();if(!nm)return;
+      const k=norm(nm);
+      const e=m[k];
+      if(!e||d>(e.date||''))m[k]={name:nm,unit:r.unit||'',group:r.group||'',rate:+r.rate||0,taxPct:+r.gstPct||0,date:d};
+    });
+  }catch(e){}
+  const rows=Object.keys(m).filter(k=>!have[k]).map(k=>m[k]);
+  if(!rows.length){toast('Koi naya purana item nahi mila — sab pehle se hain',true);return;}
+  if(!confirm(rows.length+' purane items (Apr–Sep) Pride ke item master me add ho jayenge.\n\nOK dabao.'))return;
+  const docs=rows.map(o=>({id:uid(),name:o.name,cat:o.group||'',unit:String(o.unit||'PCS').toUpperCase(),rate:o.rate||0,taxPct:o.taxPct||0,mrp:0,openQty:0,u:Date.now()}));
+  docs.forEach(d=>P_ITEMS.push(d));
+  prideSaveAll(docs.map(d=>({kind:'items',doc:d})));
+  prideAudit('Purane items import',rows.length+' items (Apr–Sep ke bills se)');
+  prideRenderProducts();
+  toast('✅ '+rows.length+' purane items add ho gaye');
 }
 function prideEntVendorPick(s){
   const inp=document.getElementById('pride_ent_vendor');
@@ -4324,7 +4382,7 @@ function prideEntAddRow(){
   prideSuggFor(itemIn,tr.querySelector('.psugg'),prideItemList,s=>{
     itemIn.value=s.it.name;
     tr.querySelector('.e_unit').value=s.it.unit||'';
-    if(!tr.querySelector('.e_rate').value)tr.querySelector('.e_rate').value=prideLastRate(s.it.id)||s.it.rate||'';
+    if(!tr.querySelector('.e_rate').value)tr.querySelector('.e_rate').value=prideLastRate(s.it.id)||prideOldRate(s.it.name)||s.it.rate||'';
     tr.querySelector('.e_taxp').value=s.it.taxPct||0;
     if(s.it.mrp)tr.querySelector('.e_mrp').value=s.it.mrp;
     prideEntRowCalc(tr);
@@ -4548,7 +4606,7 @@ function prideIssueBulk(){
     const id=ck.dataset.id,it=prideItem(id);if(!it)return;
     const qEl=document.querySelector('.pride_iq[data-id="'+id+'"]');
     const qty=numParse(qEl&&qEl.value);
-    if(qty>0){const lr=prideLastRate(id)||+it.rate||0;lines.push({id:id,name:it.name,qty:prideR2(qty),rate:lr,amt:prideR2(qty*lr)});}
+    if(qty>0){const lr=prideLastRate(id)||prideOldRate(it.name)||+it.rate||0;lines.push({id:id,name:it.name,qty:prideR2(qty),rate:lr,amt:prideR2(qty*lr)});}
   });
   if(!lines.length){toast('Koi item tick karke qty nahi likhi',true);return;}
   const short=lines.filter(l=>l.qty>(P_STOCK[l.id]||0)+0.0001);
@@ -5566,6 +5624,7 @@ function prideReqAddRow(){
     tr.querySelector('.rq_unit').value=s.it.unit||'';
     tr.querySelector('.rq_stock').textContent=(P_STOCK[s.it.id]||0);
     tr._iid=s.it.id;
+    tr._fb={unit:s.it.unit,cat:s.it.cat,rate:s.it.rate,taxPct:s.it.taxPct};
     tr.querySelector('.rq_qty').focus();
   });
   prideReqRenumber();
@@ -5583,7 +5642,7 @@ function prideReqSave(){
   document.querySelectorAll('#pride_req_rows tr').forEach(tr=>{
     const nm=tr.querySelector('.rq_item').value.trim();
     const qty=numParse(tr.querySelector('.rq_qty').value);
-    if(nm&&qty>0){const it=prideItemByName(nm);items.push({id:it?it.id:'',name:nm,qty:prideR2(qty)});}
+    if(nm&&qty>0){const it=prideEnsureItem(nm,tr._fb||{});items.push({id:it.id,name:it.name,qty:prideR2(qty)});}
   });
   if(!items.length){toast('Kam se kam ek item ki qty likho',true);return;}
   const doc={id:uid(),no:no,date:dt,dept:dept,remark:remark,items:items,u:Date.now()};
@@ -5657,7 +5716,7 @@ function prideMIInit(){
     pi.dataset.sg='1';
     prideSuggFor(pi,document.getElementById('pride_mi_sugg'),prideItemList,s=>{
       pi.value=s.it.name;pi._it=s.it;
-      document.getElementById('pride_mi_rate').value=prideLastRate(s.it.id)||s.it.rate||'';
+      document.getElementById('pride_mi_rate').value=prideLastRate(s.it.id)||prideOldRate(s.it.name)||s.it.rate||'';
       document.getElementById('pride_mi_stock').value=(P_STOCK[s.it.id]||0);
       prideMIReqQty(s.it.id);
       prideMIAmt();document.getElementById('pride_mi_qty').focus();
@@ -5701,8 +5760,11 @@ function prideMIAmt(){
 function prideMIAdd(){
   if(!prideNeedPM())return;
   const pi=document.getElementById('pride_mi_prod');
-  const it=pi._it||prideItemByName((pi.value||'').trim());
+  let it=pi._it||prideItemByName((pi.value||'').trim());
+  if(!it){const o=prideOldItemMap()[norm((pi.value||'').trim())];
+    if(o)it={id:'',name:o.name,unit:o.unit,cat:o.group,rate:o.rate,taxPct:0};}
   if(!it){toast('Product list se chuno',true);return;}
+  if(!it.id)it=prideEnsureItem(it.name,{unit:it.unit,cat:it.cat,rate:it.rate,taxPct:it.taxPct});
   const qty=numParse(document.getElementById('pride_mi_qty').value);
   if(qty<=0){toast('Qty likho',true);return;}
   const rate=numParse(document.getElementById('pride_mi_rate').value)||(+it.rate||0);
