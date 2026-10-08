@@ -1586,7 +1586,7 @@ tfoot td{font-weight:800;background:#f0f5f3;border-top:2px solid var(--teal);fon
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;align-items:end">
           <div style="flex:1;min-width:200px"><label style="font-size:11px;color:var(--ink3)">Remark</label><br><input id="pride_po_remark" class="smini" style="width:100%" placeholder="Optional"></div>
           <div><label style="font-size:11px;color:var(--ink3)">Total</label><br><input id="pride_po_total" class="smini" readonly style="width:130px;font-weight:800"></div>
-          <div><button class="btn btn-primary btn-sm" onclick="pridePOSave()">✅ PO Save</button> <button class="btn btn-sm" onclick="pridePOClear()">Clear</button></div>
+          <div><button class="btn btn-primary btn-sm" id="pride_po_savebtn" onclick="pridePOSave()">✅ PO Save</button> <button class="btn btn-sm" onclick="pridePOClear()">Clear</button></div>
         </div>
       </div></div>
     <div class="card hide" id="pride_po_preview_card" style="margin-top:12px"><div class="card-head"><h2>🖨 PO Preview</h2><button class="btn btn-primary btn-sm" onclick="pridePOPrintCur()">🖨 Print</button></div>
@@ -4004,7 +4004,7 @@ const PRIDE_LS={items:'ginger_pride_items_v1',bills:'ginger_pride_bills_v1',issu
 const PRIDE_FB={items:'pm_pride_items',bills:'pm_pride_bills',issues:'pm_pride_issues',audit:'pm_pride_audit',vendors:'pm_pride_vendors',reqs:'pm_pride_reqs',po:'pm_pride_po'};
 const PRIDE_SEEDFLAG='ginger_pride_seedpushed_v1';
 let PRIDE_TAB='dash', PRIDE_DETAB='items';
-let P_ITEMS=[], P_BILLS=[], P_ISSUES=[], P_AUDIT=[], P_VENDORS=[], P_REQS=[], P_PO=[], PRIDE_PO_ROWS=[];
+let P_ITEMS=[], P_BILLS=[], P_ISSUES=[], P_AUDIT=[], P_VENDORS=[], P_REQS=[], P_PO=[], PRIDE_PO_ROWS=[], PRIDE_PO_EDIT=null;
 let P_STOCK={};
 function prideR2(n){return Math.round((+n||0)*100)/100;}
 function prideItem(id){return P_ITEMS.find(i=>i.id===id);}
@@ -6312,6 +6312,8 @@ function pridePORender(){
 }
 function pridePODelRow(i){PRIDE_PO_ROWS.splice(i,1);pridePORender();}
 function pridePOClear(){
+  PRIDE_PO_EDIT=null;
+  const sb=document.getElementById('pride_po_savebtn');if(sb)sb.textContent='✅ PO Save';
   PRIDE_PO_ROWS=[];pridePORender();
   ['pride_po_vendor','pride_po_deliv','pride_po_remark','pride_po_prod','pride_po_qty','pride_po_rate','pride_po_amt'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   const pay=document.getElementById('pride_po_pay');if(pay)pay.value='30 days credit';
@@ -6324,20 +6326,47 @@ function pridePOSave(){
   const vendor=document.getElementById('pride_po_vendor').value.trim();
   if(!vendor){toast('Vendor likho',true);return;}
   const no=(document.getElementById('pride_po_no').value.trim()||pridePONext());
-  if(P_PO.some(p=>p.no===no)){toast('Ye PO No pehle se hai',true);return;}
-  const doc={id:uid(),no:no,date:document.getElementById('pride_po_date').value||today(),
+  const fields={date:document.getElementById('pride_po_date').value||today(),
     vendor:vendor,delivBy:document.getElementById('pride_po_deliv').value||'',
     payTerms:document.getElementById('pride_po_pay').value.trim()||'30 days credit',
     remark:document.getElementById('pride_po_remark').value.trim(),
     items:PRIDE_PO_ROWS.map(l=>({id:l.id,name:l.name,unit:l.unit,qty:l.qty,rate:l.rate,amt:l.amt})),
     total:prideR2(PRIDE_PO_ROWS.reduce((a,l)=>a+l.amt,0)),u:Date.now()};
-  P_PO.unshift(doc);
+  let doc;
+  if(PRIDE_PO_EDIT){
+    doc=P_PO.find(x=>x.id===PRIDE_PO_EDIT);
+    if(!doc){toast('PO nahi mila',true);return;}
+    Object.assign(doc,fields,{no:no});
+    prideAudit('PO modify',no+' · '+vendor+' · '+doc.items.length+' items · '+inr(doc.total));
+    toast('✅ PO '+no+' update ho gaya');
+  }else{
+    if(P_PO.some(p=>p.no===no)){toast('Ye PO No pehle se hai',true);return;}
+    doc=Object.assign({id:uid(),no:no},fields);
+    P_PO.unshift(doc);
+    prideAudit('PO banaya',no+' · '+vendor+' · '+doc.items.length+' items · '+inr(doc.total));
+    toast('✅ PO '+no+' save ho gaya');
+  }
   pridePOVendorEnsure(vendor);
   prideSaveLocal();prideCloudPut('po',doc);
-  prideAudit('PO banaya',no+' · '+vendor+' · '+doc.items.length+' items · '+inr(doc.total));
   pridePOClear();pridePOList();
-  toast('✅ PO '+no+' save ho gaya');
   pridePOShowPrint(doc.id);
+}
+/* PO modify: history se wapas form me load karo */
+function pridePOEdit(id){
+  if(!prideNeedPM())return;
+  const p=P_PO.find(x=>x.id===id);if(!p){toast('PO nahi mila',true);return;}
+  PRIDE_PO_EDIT=id;
+  document.getElementById('pride_po_no').value=p.no;
+  document.getElementById('pride_po_date').value=p.date||today();
+  document.getElementById('pride_po_vendor').value=p.vendor||'';
+  document.getElementById('pride_po_deliv').value=p.delivBy||'';
+  document.getElementById('pride_po_pay').value=p.payTerms||'30 days credit';
+  document.getElementById('pride_po_remark').value=p.remark||'';
+  PRIDE_PO_ROWS=(p.items||[]).map(l=>({id:l.id,name:l.name,unit:l.unit,qty:l.qty,rate:l.rate,amt:l.amt}));
+  pridePORender();
+  const sb=document.getElementById('pride_po_savebtn');if(sb)sb.textContent='✅ PO Update';
+  toast('✏️ '+p.no+' load ho gaya — badlav karke Update dabao');
+  const card=document.getElementById('pride_po_card');if(card&&card.scrollIntoView)card.scrollIntoView({behavior:'smooth'});
 }
 function pridePOVendorEnsure(vendor){
   if(vendor&&!P_VENDORS.some(x=>norm(x.name||'')===norm(vendor))){
@@ -6348,7 +6377,7 @@ function pridePOVendorEnsure(vendor){
 function pridePOList(){
   const tb=document.getElementById('pride_po_hist');if(!tb)return;
   if(!P_PO.length){tb.innerHTML='<tr><td colspan="6" style="text-align:center;color:var(--ink3)">Abhi koi PO nahi bana</td></tr>';return;}
-  tb.innerHTML=P_PO.map(p=>'<tr><td><b>'+esc(p.no)+'</b></td><td>'+fmtD(p.date)+'</td><td>'+esc(p.vendor)+'</td><td style="text-align:center">'+(p.items||[]).length+'</td><td style="text-align:right"><b>'+inr(p.total)+'</b></td><td style="white-space:nowrap"><button class="btn btn-sm" onclick="pridePOShowPrint(\''+p.id+'\')">🖨 Print</button> <button class="btn btn-sm" onclick="pridePODel(\''+p.id+'\')">🗑</button></td></tr>').join('');
+  tb.innerHTML=P_PO.map(p=>'<tr><td><b>'+esc(p.no)+'</b></td><td>'+fmtD(p.date)+'</td><td>'+esc(p.vendor)+'</td><td style="text-align:center">'+(p.items||[]).length+'</td><td style="text-align:right"><b>'+inr(p.total)+'</b></td><td style="white-space:nowrap"><button class="btn btn-sm" onclick="pridePOEdit(\''+p.id+'\')">✏️</button> <button class="btn btn-sm" onclick="pridePOShowPrint(\''+p.id+'\')">🖨 Print</button> <button class="btn btn-sm" onclick="pridePODel(\''+p.id+'\')">🗑</button></td></tr>').join('');
 }
 function pridePODel(id){
   if(!prideNeedPM())return;
