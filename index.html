@@ -1303,6 +1303,14 @@ tfoot td{font-weight:800;background:#f0f5f3;border-top:2px solid var(--teal);fon
     <div class="card"><div class="card-head"><h2>🧾 Bill View</h2>
       <input id="pride_bill_q" class="smini" placeholder="🔍 bill no / vendor" style="width:200px" oninput="prideRenderBills()"></div>
       <div class="card-body">
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;align-items:end">
+          <div><label style="font-size:11px;color:var(--ink3)">Vendor</label><br><select id="pride_bill_vendor" class="smini" style="min-width:170px" onchange="prideRenderBills()"></select></div>
+          <div><label style="font-size:11px;color:var(--ink3)">Month-Year</label><br><select id="pride_bill_my" class="smini" style="width:120px" onchange="prideBillMY()"></select></div>
+          <div><label style="font-size:11px;color:var(--ink3)">From</label><br><input id="pride_bill_from" type="date" class="smini" style="width:140px" onchange="prideBillCustom()"></div>
+          <div><label style="font-size:11px;color:var(--ink3)">To</label><br><input id="pride_bill_to" type="date" class="smini" style="width:140px" onchange="prideBillCustom()"></div>
+          <div><button class="btn btn-sm" onclick="prideBillRegPrint()">🖨 Print</button> <button class="btn btn-sm" onclick="prideBillRegExcel()">📊 Excel</button> <button class="btn btn-sm" onclick="prideBillRegClear()">Clear</button></div>
+        </div>
+        <div id="pride_bill_regsum" style="font-size:12px;color:var(--ink3);margin-bottom:8px"></div>
         <div class="table-scroll"><table id="pride_bills_table"></table></div>
         <div id="pride_bill_detail" style="margin-top:12px"></div>
       </div></div>
@@ -4781,13 +4789,88 @@ function prideEntReset(){
 }
 
 /* ---------- 4. BILL VIEW ---------- */
-function prideRenderBills(){
+function prideBillVendors(){
+  const vs=[...new Set(P_BILLS.map(b=>b.vendor).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
+  const sel=document.getElementById('pride_bill_vendor');if(!sel)return;
+  const cur=sel.value;
+  sel.innerHTML='<option value="">Sab vendors</option>'+vs.map(v=>'<option value="'+esc(v)+'">'+esc(v)+'</option>').join('');
+  if(cur&&[...sel.options].some(o=>o.value===cur))sel.value=cur;
+}
+function prideBillMYs(){
+  const ms=[...new Set(P_BILLS.map(b=>(b.date||'').slice(0,7)).filter(x=>x.length===7))].sort().reverse();
+  const sel=document.getElementById('pride_bill_my');if(!sel)return;
+  const cur=sel.value;
+  sel.innerHTML='<option value="">Sab</option>'+ms.map(m=>'<option value="'+m+'">'+m.slice(5,7)+'/'+m.slice(0,4)+'</option>').join('');
+  if(cur&&[...sel.options].some(o=>o.value===cur))sel.value=cur;
+}
+function prideBillMY(){
+  const m=document.getElementById('pride_bill_my').value;
+  if(m){
+    document.getElementById('pride_bill_from').value=m+'-01';
+    const last=new Date(+m.slice(0,4),+m.slice(5,7),0).getDate();
+    document.getElementById('pride_bill_to').value=m+'-'+String(last).padStart(2,'0');
+  }else{
+    document.getElementById('pride_bill_from').value='';
+    document.getElementById('pride_bill_to').value='';
+  }
+  prideRenderBills();
+}
+function prideBillCustom(){
+  document.getElementById('pride_bill_my').value='';
+  prideRenderBills();
+}
+function prideBillRegClear(){
+  ['pride_bill_vendor','pride_bill_my','pride_bill_from','pride_bill_to','pride_bill_q'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  prideRenderBills();
+}
+function prideBillFiltered(){
   const q=norm(document.getElementById('pride_bill_q').value||'');
-  const rows=[...P_BILLS].sort((a,b)=>(b.date||'').localeCompare(a.date||'')).filter(b=>!q||norm(b.billNo).includes(q)||norm(b.vendor).includes(q));
+  const v=norm(document.getElementById('pride_bill_vendor').value||'');
+  const f=document.getElementById('pride_bill_from').value||'';
+  const t=document.getElementById('pride_bill_to').value||'';
+  return [...P_BILLS].sort((a,b)=>(b.date||'').localeCompare(a.date||'')).filter(b=>
+    (!q||norm(b.billNo).includes(q)||norm(b.vendor).includes(q))&&
+    (!v||norm(b.vendor||'')===v)&&
+    (!f||(b.date||'')>=f)&&(!t||(b.date||'')<=t));
+}
+function prideBillRegTitle(){
+  const v=document.getElementById('pride_bill_vendor').value;
+  const f=document.getElementById('pride_bill_from').value,t=document.getElementById('pride_bill_to').value;
+  let s='Sab bills';
+  if(v)s='Vendor: '+v;
+  if(f||t)s+=' · '+(f?fmtD(f):'shuru')+' se '+(t?fmtD(t):'aaj tak');
+  return s;
+}
+function prideRenderBills(){
+  prideBillVendors();prideBillMYs();
+  const rows=prideBillFiltered();
   const pm=prideCanEdit();
-  document.getElementById('pride_bills_table').innerHTML='<tr><th>Date</th><th>Bill No</th><th>Vendor</th><th>Items</th><th>Total</th><th></th></tr>'+
-    (rows.map(b=>'<tr><td>'+fmtD(b.date)+'</td><td><b>'+esc(b.billNo)+'</b></td><td>'+esc(b.vendor)+'</td><td style="text-align:center">'+(b.items||[]).length+'</td><td style="text-align:right"><b>'+inr(b.total)+'</b></td>'+
-      '<td style="white-space:nowrap"><button class="btn btn-sm" onclick="prideBillView(\''+b.id+'\')">👁</button> <button class="btn btn-sm" onclick="prideBillPrint(\''+b.id+'\')">🖨</button>'+(pm?' <button class="btn btn-sm" onclick="prideBillDel(\''+b.id+'\')">🗑</button>':'')+'</td></tr>').join('')||'<tr><td colspan="6" style="color:var(--ink3)">Koi bill nahi</td></tr>');
+  const tot=prideR2(rows.reduce((a,b)=>a+(+b.total||0),0));
+  const sum=document.getElementById('pride_bill_regsum');
+  if(sum)sum.innerHTML='<b>'+rows.length+'</b> bills · Total <b>'+inr(tot)+'</b> · '+esc(prideBillRegTitle());
+  document.getElementById('pride_bills_table').innerHTML='<tr><th>Date</th><th>GRN No</th><th>Bill No</th><th>Vendor</th><th>Items</th><th>Total</th><th></th></tr>'+
+    (rows.map(b=>'<tr><td>'+fmtD(b.date)+'</td><td>'+esc(b.grnNo||'—')+'</td><td><b>'+esc(b.billNo)+'</b></td><td>'+esc(b.vendor)+'</td><td style="text-align:center">'+(b.items||[]).length+'</td><td style="text-align:right"><b>'+inr(b.total)+'</b></td>'+
+      '<td style="white-space:nowrap"><button class="btn btn-sm" onclick="prideBillView(\''+b.id+'\')">👁</button> <button class="btn btn-sm" onclick="prideBillPrint(\''+b.id+'\')">🖨</button>'+(pm?' <button class="btn btn-sm" onclick="prideBillDel(\''+b.id+'\')">🗑</button>':'')+'</td></tr>').join('')||'<tr><td colspan="7" style="color:var(--ink3)">Koi bill nahi</td></tr>');
+}
+function prideBillRegPrint(){
+  const rows=prideBillFiltered();
+  if(!rows.length){toast('Koi bill nahi hai',true);return;}
+  const tot=prideR2(rows.reduce((a,b)=>a+(+b.total||0),0));
+  const body='<div style="font-size:12px;margin-bottom:8px">'+esc(prideBillRegTitle())+'</div>'+
+    '<table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr>'+
+    ['Date','GRN No','Bill No','Vendor','Items','Total'].map(c=>'<th style="border:1px solid #000;padding:5px;background:#f0f0f0">'+c+'</th>').join('')+'</tr></thead><tbody>'+
+    rows.map(b=>'<tr><td style="border:1px solid #000;padding:5px">'+fmtD(b.date)+'</td><td style="border:1px solid #000;padding:5px">'+esc(b.grnNo||'—')+'</td><td style="border:1px solid #000;padding:5px"><b>'+esc(b.billNo)+'</b></td><td style="border:1px solid #000;padding:5px">'+esc(b.vendor)+'</td><td style="border:1px solid #000;padding:5px;text-align:center">'+(b.items||[]).length+'</td><td style="border:1px solid #000;padding:5px;text-align:right">'+(+b.total||0).toFixed(2)+'</td></tr>').join('')+
+    '<tr><td colspan="5" style="border:1px solid #000;padding:5px;text-align:right"><b>TOTAL ('+rows.length+' bills)</b></td><td style="border:1px solid #000;padding:5px;text-align:right"><b>'+tot.toFixed(2)+'</b></td></tr></tbody></table>';
+  pridePrintHTML('Bill Register',body);
+  toast('🖨 Bill Register print ho raha hai');
+}
+function prideBillRegExcel(){
+  const rows=prideBillFiltered();
+  if(!rows.length){toast('Koi bill nahi hai',true);return;}
+  const out=[['Date','GRN No','Bill No','Vendor','Items','Total']];
+  rows.forEach(b=>out.push([b.date,b.grnNo||'',b.billNo,b.vendor,(b.items||[]).length,b.total]));
+  out.push(['','','','','TOTAL',prideR2(rows.reduce((a,b)=>a+(+b.total||0),0))]);
+  prideCSV('Bill-Register.csv',out);
 }
 function prideBillView(id){
   const b=P_BILLS.find(x=>x.id===id);if(!b)return;
