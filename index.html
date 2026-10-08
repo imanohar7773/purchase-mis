@@ -1299,6 +1299,7 @@ tfoot td{font-weight:800;background:#f0f5f3;border-top:2px solid var(--teal);fon
   <div id="pride-entry" class="pride-sub hide">
     <div class="card"><div class="card-head"><h2>✏ GRN Entry — Purchase Bill</h2></div>
       <div class="card-body" id="pride_ent_card">
+        <div id="pride_ent_draftbar"></div>
         <div class="pent-grid">
           <div><label>GRN No.</label><input id="pride_ent_grn" class="smini" placeholder="Auto" style="width:100%"></div>
           <div><label>Rec Date *</label><input id="pride_ent_date" class="smini" type="date" style="width:100%"></div>
@@ -1567,6 +1568,7 @@ tfoot td{font-weight:800;background:#f0f5f3;border-top:2px solid var(--teal);fon
   <div id="pride-missue" class="pride-sub hide">
     <div class="card"><div class="card-head"><h2>📤 Material Issue</h2></div>
       <div class="card-body" id="pride_mi_card">
+        <div id="pride_mi_draftbar"></div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;align-items:end;background:#f7faf9;padding:8px;border-radius:8px">
           <div><label style="font-size:11px;color:var(--ink3)">Ref No (Modify)</label><br><input id="pride_mi_load" class="smini" placeholder="ISL-0001" style="width:140px"></div>
           <div><button class="btn btn-sm" onclick="prideMILoad()">📝 Load (Modify)</button></div>
@@ -4617,7 +4619,11 @@ function prideEntInit(){
     ['pride_ent_cart','pride_ent_trans','pride_ent_bdisc'].forEach(id=>{
       document.getElementById(id).addEventListener('input',prideEntTotal);
     });
+    card.addEventListener('input',prideEntDraftSoon);
+    card.addEventListener('change',prideEntDraftSoon);
+    if(!window._entDraftUn){window._entDraftUn=1;window.addEventListener('beforeunload',prideEntDraftSave);}
   }
+  prideEntDraftBar();
   if(!document.getElementById('pride_ent_grn').value)document.getElementById('pride_ent_grn').value=prideEntNextGRN();
   if(!document.getElementById('pride_ent_date').value)document.getElementById('pride_ent_date').value=today();
 }
@@ -4817,6 +4823,7 @@ function prideEntCommit(head,raws){
   prideEnsureVendor(head.vendor);
   prideSaveAll([{kind:'bills',doc:bill}]);
   prideAudit('GRN add',(head.grnNo||'')+' · Inv '+head.no+' · '+head.vendor+' · '+items.length+' items · '+inr(t.tot));
+  try{localStorage.removeItem(PRIDE_DRAFT_KEY);}catch(e){}
   prideEntReset();
   toast('✅ GRN '+head.grnNo+' save · stock badh gaya');
 }
@@ -5888,6 +5895,66 @@ function prideFilterDash(){
 
 function prideDashSlipView(id){prideTab('search');setTimeout(()=>prideSlipView(id),80);}
 
+/* ===== GRN auto-draft: bijli jaye ya page band ho — adhura bill wapas milega ===== */
+const PRIDE_DRAFT_KEY='ginger_pride_grn_draft_v1';
+let PRIDE_DRAFT_T=null;
+function prideEntDraftSave(){
+  try{
+    const g=id=>{const el=document.getElementById(id);return el?(el.value||''):'';};
+    const rows=[];
+    document.querySelectorAll('#pride_ent_rows tr').forEach(tr=>{
+      const q=tr.querySelector.bind(tr);
+      const r={item:q('.e_item').value,des:q('.e_des').value,exp:q('.e_exp').value,unit:q('.e_unit').value,
+        qty:q('.e_qty').value,fqty:q('.e_fqty').value,rate:q('.e_rate').value,mrp:q('.e_mrp').value,
+        discp:q('.e_discp').value,taxp:q('.e_taxp').value};
+      if((r.item||'').trim()||+r.qty>0||+r.rate>0)rows.push(r);
+    });
+    const d={v:1,at:Date.now(),date:g('pride_ent_date'),vendor:g('pride_ent_vendor'),chno:g('pride_ent_chno'),chdt:g('pride_ent_chdt'),
+      invno:g('pride_ent_no'),invdt:g('pride_ent_invdt'),pay:g('pride_ent_pay'),remark:g('pride_ent_remark'),
+      cart:g('pride_ent_cart'),trans:g('pride_ent_trans'),bdisc:g('pride_ent_bdisc'),rows:rows};
+    if((d.vendor||'').trim()||(d.invno||'').trim()||rows.length)localStorage.setItem(PRIDE_DRAFT_KEY,JSON.stringify(d));
+    else localStorage.removeItem(PRIDE_DRAFT_KEY);
+  }catch(e){}
+}
+function prideEntDraftSoon(){clearTimeout(PRIDE_DRAFT_T);PRIDE_DRAFT_T=setTimeout(prideEntDraftSave,1000);}
+function prideEntDraftRead(){try{const s=localStorage.getItem(PRIDE_DRAFT_KEY);return s?JSON.parse(s):null;}catch(e){return null;}}
+function prideEntDraftBar(){
+  const bar=document.getElementById('pride_ent_draftbar');if(!bar)return;
+  const d=prideEntDraftRead();
+  if(d&&((d.vendor||'').trim()||(d.invno||'').trim()||(d.rows&&d.rows.length))){
+    let when='';try{when=new Date(d.at).toLocaleString('en-IN',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'});}catch(e){}
+    bar.innerHTML='<div style="background:#fff8e1;border:1px solid #f0d060;border-radius:8px;padding:8px 10px;font-size:13px;display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:10px">'+
+      '<span>📝 <b>Adhura bill mila</b>'+(when?' ('+when+')':'')+(d.vendor?' · '+esc(d.vendor):'')+(d.rows&&d.rows.length?' · '+d.rows.length+' lines':'')+' — jahan chhoda tha wahan se shuru karo</span>'+
+      '<button class="btn btn-primary btn-sm" onclick="prideEntDraftRestore()">↩ Wapas lao</button>'+
+      '<button class="btn btn-sm" onclick="prideEntDraftDrop()">🗑 Hatao</button></div>';
+  }else bar.innerHTML='';
+}
+function prideEntDraftRestore(){
+  const d=prideEntDraftRead();if(!d)return;
+  const s=(id,v)=>{const el=document.getElementById(id);if(el&&v!=null)el.value=v;};
+  s('pride_ent_date',d.date);s('pride_ent_vendor',d.vendor);s('pride_ent_chno',d.chno);s('pride_ent_chdt',d.chdt);
+  s('pride_ent_no',d.invno);s('pride_ent_invdt',d.invdt);s('pride_ent_pay',d.pay);s('pride_ent_remark',d.remark);
+  s('pride_ent_cart',d.cart);s('pride_ent_trans',d.trans);s('pride_ent_bdisc',d.bdisc);
+  document.getElementById('pride_ent_grn').value=prideEntNextGRN();
+  const tb=document.getElementById('pride_ent_rows');tb.innerHTML='';tb.dataset.init='1';
+  (d.rows||[]).forEach(r=>{
+    const tr=prideEntAddRow();const q=tr.querySelector.bind(tr);
+    q('.e_item').value=r.item||'';q('.e_des').value=r.des||'';q('.e_exp').value=r.exp||'';
+    q('.e_unit').value=r.unit||'';q('.e_qty').value=r.qty||'';q('.e_fqty').value=r.fqty||'';
+    q('.e_rate').value=r.rate||'';q('.e_mrp').value=r.mrp||'';q('.e_discp').value=r.discp||'';q('.e_taxp').value=r.taxp||'';
+    prideEntRowCalc(tr);prideEntExpCheck(tr);
+  });
+  if(!tb.children.length)prideEntAddRow();
+  prideEntTotal();
+  try{localStorage.removeItem(PRIDE_DRAFT_KEY);}catch(e){}
+  prideEntDraftBar();
+  toast('↩ Draft wapas aa gaya — check karke Save dabao');
+}
+function prideEntDraftDrop(){
+  try{localStorage.removeItem(PRIDE_DRAFT_KEY);}catch(e){}
+  prideEntDraftBar();toast('Draft hata diya');
+}
+
 /* ---------- REPORTS (Accounts + Store, date-wise) ---------- */
 const PRIDE_REPORTS=[
  {id:'pur_detail',g:'Accounts',n:'Item Wise Purchase Detail'},
@@ -6436,7 +6503,11 @@ function prideMIInit(){
     document.getElementById('pride_mi_qty').addEventListener('input',prideMIAmt);
   }
   const card=document.getElementById('pride_mi_card');
+  prideMIDraftBar();
   if(card&&!card.dataset.nav){card.dataset.nav='1';
+    card.addEventListener('input',prideMIDraftSoon);
+    card.addEventListener('change',prideMIDraftSoon);
+    if(!window._miDraftUn){window._miDraftUn=1;window.addEventListener('beforeunload',prideMIDraftSave);}
     card.addEventListener('keydown',e=>{
       if(e.key!=='Enter')return;const t=e.target;
       if(t.id==='pride_mi_qty'){e.preventDefault();prideMIAdd();return;}
@@ -6535,13 +6606,13 @@ function prideMIAdd(){
   PRIDE_MI_ROWS.push({id:it.id,name:it.name,unit:it.unit,qty:prideR2(qty),rate:prideR2(rate),amt:prideR2(qty*rate),lotKey:lotKey,lotLabel:lotLabel});
   pi.value='';pi._it=null;
   ['pride_mi_rate','pride_mi_amt','pride_mi_stock','pride_mi_reqqty','pride_mi_qty'].forEach(id=>document.getElementById(id).value='');
-  prideMIRender();prideMILotsShow();pi.focus();
+  prideMIRender();prideMILotsShow();prideMIDraftSoon();pi.focus();
 }
 function prideMIRender(){
   document.getElementById('pride_mi_rows').innerHTML=PRIDE_MI_ROWS.map((l,i)=>'<tr><td style="text-align:center">'+(i+1)+'</td><td><b>'+esc(l.name)+'</b></td><td>'+esc(l.unit||'')+'</td><td style="text-align:center">'+(P_STOCK[l.id]||0)+'</td><td style="text-align:center">'+l.qty+'</td><td style="text-align:right">'+l.rate+'</td><td style="text-align:right">'+l.amt.toFixed(2)+'</td><td style="font-size:11px;color:var(--ink2)">'+esc(l.lotLabel||'Auto')+'</td><td><button class="prow-del" onclick="prideMIDelRow('+i+')" tabindex="-1">✕</button></td></tr>').join('');
   document.getElementById('pride_mi_total').value=prideR2(PRIDE_MI_ROWS.reduce((a,l)=>a+l.amt,0)).toFixed(2);
 }
-function prideMIDelRow(i){PRIDE_MI_ROWS.splice(i,1);prideMIRender();}
+function prideMIDelRow(i){PRIDE_MI_ROWS.splice(i,1);prideMIRender();prideMIDraftSoon();}
 function prideMISave(){
   if(!prideNeedPM())return;
   if(!PRIDE_MI_ROWS.length){toast('Koi item nahi joda',true);return;}
@@ -6594,12 +6665,71 @@ function prideMILoad(){
   toast('📝 '+no+' load ho gaya — edit karke Save dabao');
 }
 function prideMIClear(){
+  try{localStorage.removeItem(PRIDE_MI_DRAFT_KEY);}catch(e){}
   PRIDE_MI_EDIT=null;PRIDE_MI_ROWS=[];
   ['pride_mi_load','pride_mi_remark','pride_mi_no','pride_mi_date'].forEach(id=>document.getElementById(id).value='');
   const pi=document.getElementById('pride_mi_prod');pi.value='';pi._it=null;
   ['pride_mi_rate','pride_mi_amt','pride_mi_stock','pride_mi_reqqty','pride_mi_qty'].forEach(id=>document.getElementById(id).value='');
   PRIDE_MI_LOTKEY='';const _lb2=document.getElementById('pride_mi_lotbox');if(_lb2)_lb2.innerHTML='';
   prideMIInit();prideMIRender();
+}
+
+/* ===== Material Issue auto-draft ===== */
+const PRIDE_MI_DRAFT_KEY='ginger_pride_mi_draft_v1';
+let PRIDE_MI_DRAFT_T=null;
+function prideMIDraftSave(){
+  try{
+    const g=id=>{const el=document.getElementById(id);return el?(el.value||''):'';};
+    const pi=document.getElementById('pride_mi_prod');
+    const cur=(((pi&&pi.value)||'').trim()||g('pride_mi_qty').trim())?{prod:(pi?pi.value:'').trim(),rate:g('pride_mi_rate'),qty:g('pride_mi_qty'),lotKey:(typeof PRIDE_MI_LOTKEY!=='undefined'?PRIDE_MI_LOTKEY:'')}:null;
+    const d={v:1,at:Date.now(),editId:(typeof PRIDE_MI_EDIT!=='undefined'&&PRIDE_MI_EDIT)||'',no:g('pride_mi_no'),date:g('pride_mi_date'),dept:g('pride_mi_dept'),
+      req:g('pride_mi_req'),remark:g('pride_mi_remark'),rows:(typeof PRIDE_MI_ROWS!=='undefined'?PRIDE_MI_ROWS:[]),cur:cur};
+    if(d.rows.length||cur||(d.remark||'').trim())localStorage.setItem(PRIDE_MI_DRAFT_KEY,JSON.stringify(d));
+    else localStorage.removeItem(PRIDE_MI_DRAFT_KEY);
+  }catch(e){}
+}
+function prideMIDraftSoon(){clearTimeout(PRIDE_MI_DRAFT_T);PRIDE_MI_DRAFT_T=setTimeout(prideMIDraftSave,1000);}
+function prideMIDraftRead(){try{const s=localStorage.getItem(PRIDE_MI_DRAFT_KEY);return s?JSON.parse(s):null;}catch(e){return null;}}
+function prideMIDraftBar(){
+  const bar=document.getElementById('pride_mi_draftbar');if(!bar)return;
+  const d=prideMIDraftRead();
+  if(d&&(((d.rows||[]).length)||d.cur)){
+    let when='';try{when=new Date(d.at).toLocaleString('en-IN',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'});}catch(e){}
+    bar.innerHTML='<div style="background:#fff8e1;border:1px solid #f0d060;border-radius:8px;padding:8px 10px;font-size:13px;display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:10px">'+
+      '<span>📝 <b>Adhura issue mila</b>'+(when?' ('+when+')':'')+(d.dept?' · '+esc(d.dept):'')+((d.rows||[]).length?' · '+d.rows.length+' lines':'')+(d.editId?' · modify '+esc(d.no||''):'')+' — jahan chhoda tha wahan se shuru karo</span>'+
+      '<button class="btn btn-primary btn-sm" onclick="prideMIDraftRestore()">↩ Wapas lao</button>'+
+      '<button class="btn btn-sm" onclick="prideMIDraftDrop()">🗑 Hatao</button></div>';
+  }else bar.innerHTML='';
+}
+function prideMIDraftRestore(){
+  const d=prideMIDraftRead();if(!d)return;
+  PRIDE_MI_EDIT=d.editId||null;
+  const s=(id,v)=>{const el=document.getElementById(id);if(el&&v!=null)el.value=v;};
+  s('pride_mi_no',d.no);s('pride_mi_date',d.date);s('pride_mi_remark',d.remark);
+  const ds=document.getElementById('pride_mi_dept');
+  if(d.dept&&![...ds.options].some(o=>o.value===d.dept)){const o=document.createElement('option');o.textContent=d.dept;ds.appendChild(o);}
+  s('pride_mi_dept',d.dept);
+  prideMIReqFill();
+  if(d.req){const rq=document.getElementById('pride_mi_req');if(![...rq.options].some(o=>o.value===d.req)){const o=document.createElement('option');o.value=d.req;o.textContent=d.req;rq.appendChild(o);}rq.value=d.req;}
+  PRIDE_MI_ROWS=(d.rows||[]).map(l=>({id:l.id,name:l.name,unit:l.unit,qty:l.qty,rate:l.rate,amt:l.amt,lotKey:l.lotKey||'',lotLabel:l.lotLabel||''}));
+  prideMIRender();
+  const pi=document.getElementById('pride_mi_prod');
+  if(d.cur&&pi){
+    pi.value=d.cur.prod||'';
+    pi._it=prideItemByName((d.cur.prod||'').trim())||null;
+    s('pride_mi_rate',d.cur.rate);s('pride_mi_qty',d.cur.qty);
+    if(pi._it){s('pride_mi_stock',P_STOCK[pi._it.id]||0);prideMIReqQty(pi._it.id);prideMIAmt();}
+    prideMILotsShow();
+    const ls=document.getElementById('pride_mi_lot');
+    if(ls&&d.cur.lotKey&&[...ls.options].some(o=>o.value===d.cur.lotKey)){ls.value=d.cur.lotKey;PRIDE_MI_LOTKEY=d.cur.lotKey;}
+  }else if(pi){pi.value='';pi._it=null;prideMILotsShow();}
+  try{localStorage.removeItem(PRIDE_MI_DRAFT_KEY);}catch(e){}
+  prideMIDraftBar();
+  toast('↩ Draft wapas aa gaya — check karke Save dabao');
+}
+function prideMIDraftDrop(){
+  try{localStorage.removeItem(PRIDE_MI_DRAFT_KEY);}catch(e){}
+  prideMIDraftBar();toast('Draft hata diya');
 }
 
 /* ================= PRIDE PO — Purchase Order (vendor ko bhejne ke liye) ================= */
