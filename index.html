@@ -78,6 +78,26 @@
   // Auto-load from Firebase on startup
   window._fbReady = true;
   window.dispatchEvent(new Event('fbReady'));
+  // Pre-login PIN sync — naya device fix (2026-10-08): login se PEHLE cloud PIN lao
+  (function(){
+    try{
+      var hasLocal=false; try{hasLocal=!!localStorage.getItem(PINS_KEY);}catch(e){}
+      if(hasLocal)return; // purana device — local PIN hi chalega
+      var btn=document.querySelector('#loginPage .btn-teal');
+      var note=document.getElementById('pinSyncNote');
+      if(btn){btn.disabled=true;btn.style.opacity='0.55';}
+      if(note)note.textContent='🔒 Cloud PIN check ho raha hai...';
+      var done=false;
+      var finish=function(){if(done)return;done=true;
+        if(btn){btn.disabled=false;btn.style.opacity='';}
+        if(note)note.textContent='';};
+      var to=setTimeout(finish,6000);
+      window._fb.loadSetting('pins').then(function(p){
+        if(!done&&(p&&(p.pm||p.gm))){PINS=Object.assign({pm:'1234',gm:'4321'},p);try{saveJSON(PINS_KEY,PINS);}catch(e){}}
+        clearTimeout(to);finish();
+      }).catch(function(){clearTimeout(to);finish();});
+    }catch(e){}
+  })();
 </script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -231,7 +251,7 @@ tfoot td{font-weight:800;background:#f0f5f3;border-top:2px solid var(--teal);fon
       <input type="password" id="loginPin" placeholder="4-digit PIN" maxlength="4" inputmode="numeric"></div>
     <button class="btn btn-teal" style="width:100%;justify-content:center;padding:10px" onclick="doLogin()">Login →</button>
     <div id="loginErr" style="color:var(--red);font-size:12px;margin-top:10px;text-align:center"></div>
-    <div style="margin-top:18px;font-size:11px;color:var(--ink3);text-align:center">PM: 1234 · GM: 4321</div>
+    <div id="pinSyncNote" style="margin-top:18px;font-size:11px;color:var(--ink3);text-align:center"></div>
   </div>
 </div>
 </div>
@@ -1205,6 +1225,20 @@ tfoot td{font-weight:800;background:#f0f5f3;border-top:2px solid var(--teal);fon
           <div><h4 style="margin:6px 0">Haal ke Issues</h4><div class="table-scroll"><table id="pride_dash_issues"></table></div></div>
         </div>
       </div></div>
+    <div class="card" style="margin-top:12px"><div class="card-head"><h2>🔍 Filter Dashboard</h2></div>
+      <div class="card-body">
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;align-items:end">
+          <div><label style="font-size:11px;color:var(--ink3)">From</label><br><input id="pride_fd_from" type="date" class="smini" style="width:140px"></div>
+          <div><label style="font-size:11px;color:var(--ink3)">To</label><br><input id="pride_fd_to" type="date" class="smini" style="width:140px"></div>
+          <div><label style="font-size:11px;color:var(--ink3)">Vendor</label><br><select id="pride_fd_vendor" class="smini" style="min-width:160px"></select></div>
+          <div><label style="font-size:11px;color:var(--ink3)">Department</label><br><select id="pride_fd_dept" class="smini" style="min-width:160px"></select></div>
+          <div><label style="font-size:11px;color:var(--ink3)">Group</label><br><select id="pride_fd_grp" class="smini" style="min-width:150px"></select></div>
+          <div style="display:flex;gap:6px"><button class="btn btn-primary btn-sm" onclick="prideFilterDash()">Apply</button>
+          <button class="btn btn-sm" onclick="prideFilterDashClear()">Clear</button></div>
+        </div>
+        <div id="pride_fd_kpi" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:12px"></div>
+        <div id="pride_fd_body"></div>
+      </div></div>
     <div class="card" style="margin-top:12px"><div class="card-head"><h2>🏢 Corporate Reports</h2>
       <div style="display:flex;gap:6px;align-items:center">
         <button class="btn btn-sm" onclick="prideCorpMonthNav(-1)">‹</button>
@@ -1364,8 +1398,12 @@ tfoot td{font-weight:800;background:#f0f5f3;border-top:2px solid var(--teal);fon
 
   <!-- 8. DAILY -->
   <div id="pride-daily" class="pride-sub hide">
-    <div class="card"><div class="card-head"><h2>📅 Daily</h2>
-      <input id="pride_daily_d" class="smini" type="date" style="width:150px" onchange="prideRenderDaily()"></div>
+    <div class="card"><div class="card-head"><h2>📅 Daily Summary</h2>
+      <div style="display:flex;gap:6px;align-items:center">
+      <button class="btn btn-sm" onclick="prideDailyNav(-1)">◀</button>
+      <input id="pride_daily_d" class="smini" type="date" style="width:150px" onchange="prideRenderDaily()">
+      <button class="btn btn-sm" onclick="prideDailyNav(1)">▶</button>
+      <button class="btn btn-sm" onclick="prideDailyPrint()">🖨 Print</button></div></div>
       <div class="card-body"><div id="pride_daily_body"></div></div></div>
   </div>
 
@@ -1489,12 +1527,13 @@ tfoot td{font-weight:800;background:#f0f5f3;border-top:2px solid var(--teal);fon
           <div><label style="font-size:11px;color:var(--ink3)">Date From</label><br><input id="pride_rep_from" class="smini" type="date" style="width:140px"></div>
           <div><label style="font-size:11px;color:var(--ink3)">Date To</label><br><input id="pride_rep_to" class="smini" type="date" style="width:140px"></div>
           <div><label style="font-size:11px;color:var(--ink3)">Group</label><br><select id="pride_rep_grp" class="smini" style="width:170px"></select></div>
-          <div><label style="font-size:11px;color:var(--ink3)">Search</label><br><input id="pride_rep_q" class="smini" placeholder="🔍 filter" style="width:140px"></div>
+          <div><label style="font-size:11px;color:var(--ink3)">Search / Vendor</label><br><input id="pride_rep_q" class="smini" placeholder="🔍 vendor ya filter" style="width:170px" autocomplete="off"><div id="pride_rep_vsugg" class="psugg hide"></div></div>
           <div style="display:flex;gap:6px"><button class="btn btn-primary btn-sm" onclick="prideRepRun()">▶ Dekho</button>
           <button class="btn btn-sm" onclick="prideRepCSV()">📊 Excel</button>
           <button class="btn btn-sm" onclick="prideRepPrint()">🖨 Print</button></div>
         </div>
         <div id="pride_rep_out"><div style="color:var(--ink3);font-size:13px">Report chuno, date lagao, <b>▶ Dekho</b> dabao. Issue Return / Purchase Return reports nahi hain — return ka flow system me nahi hai.</div></div>
+        <div id="pride_rep_drill" style="margin-top:12px"></div>
       </div></div>
   </div>
 
@@ -1549,7 +1588,8 @@ tfoot td{font-weight:800;background:#f0f5f3;border-top:2px solid var(--teal);fon
           <div><label>Qty *</label><input id="pride_mi_qty" class="smini" type="number" min="0" step="any" style="width:100%"></div>
           <div style="display:flex;align-items:end"><button class="btn btn-primary" onclick="prideMIAdd()">＋</button></div>
         </div>
-        <div class="table-scroll"><table style="min-width:700px"><thead><tr><th style="width:34px">#</th><th>Product</th><th>Unit</th><th>Stock</th><th>Qty</th><th>Rate</th><th>Amount</th><th style="width:40px"></th></tr></thead><tbody id="pride_mi_rows"></tbody></table></div>
+        <div id="pride_mi_lotbox" style="margin-bottom:8px"></div>
+        <div class="table-scroll"><table style="min-width:700px"><thead><tr><th style="width:34px">#</th><th>Product</th><th>Unit</th><th>Stock</th><th>Qty</th><th>Rate</th><th>Amount</th><th>Lot</th><th style="width:40px"></th></tr></thead><tbody id="pride_mi_rows"></tbody></table></div>
         <div style="display:flex;gap:8px;margin-top:10px;align-items:center;flex-wrap:wrap">
           <button class="btn btn-primary" onclick="prideMISave()">💾 Save</button>
           <button class="btn btn-sm" onclick="prideMIClear()">🔄 Refresh</button>
@@ -4248,12 +4288,13 @@ function prideRenderDash(){
     prideKPI('Dept Issue',inr(issVal),P_ISSUES.length+' issues')+
     prideKPI('Maujooda Stock',inr(curVal),zero+' zero-stock');
   const sb=[...P_BILLS].sort((a,b)=>(b.date||'').localeCompare(a.date||'')).slice(0,5);
-  document.getElementById('pride_dash_bills').innerHTML='<tr><th>Date</th><th>Bill No</th><th>Vendor</th><th>Total</th></tr>'+
-    (sb.map(b=>'<tr><td>'+fmtD(b.date)+'</td><td><b>'+esc(b.billNo)+'</b></td><td>'+esc(b.vendor)+'</td><td style="text-align:right">'+inr(b.total)+'</td></tr>').join('')||'<tr><td colspan="4" style="color:var(--ink3)">Koi bill nahi</td></tr>');
+  document.getElementById('pride_dash_bills').innerHTML='<tr><th>Date</th><th>Bill No</th><th>Vendor</th><th>Total</th><th></th></tr>'+
+    (sb.map(b=>'<tr><td>'+fmtD(b.date)+'</td><td><b>'+esc(b.billNo)+'</b></td><td>'+esc(b.vendor)+'</td><td style="text-align:right">'+inr(b.total)+'</td><td><button class="btn btn-sm" onclick="prideRepBillGo(\''+b.id+'\',\'view\')">👁</button></td></tr>').join('')||'<tr><td colspan="5" style="color:var(--ink3)">Koi bill nahi</td></tr>');
   const si=[...P_ISSUES].sort((a,b)=>(b.date||'').localeCompare(a.date||'')).slice(0,5);
-  document.getElementById('pride_dash_issues').innerHTML='<tr><th>Date</th><th>Dept</th><th>Items</th><th>Total</th></tr>'+
-    (si.map(s=>'<tr><td>'+fmtD(s.date)+'</td><td>'+esc(s.dept)+'</td><td style="text-align:center">'+(s.items||[]).length+'</td><td style="text-align:right">'+inr(s.total)+'</td></tr>').join('')||'<tr><td colspan="4" style="color:var(--ink3)">Koi issue nahi</td></tr>');
+  document.getElementById('pride_dash_issues').innerHTML='<tr><th>Date</th><th>Dept</th><th>Items</th><th>Total</th><th></th></tr>'+
+    (si.map(s=>'<tr><td>'+fmtD(s.date)+'</td><td>'+esc(s.dept)+'</td><td style="text-align:center">'+(s.items||[]).length+'</td><td style="text-align:right">'+inr(s.total)+'</td><td style="white-space:nowrap"><button class="btn btn-sm" onclick="prideDashSlipView(\''+s.id+'\')">👁</button> <button class="btn btn-sm" onclick="prideSlipPrint(\''+s.id+'\')">🖨</button></td></tr>').join('')||'<tr><td colspan="5" style="color:var(--ink3)">Koi issue nahi</td></tr>');
   const _cm=document.getElementById('pride_corp_month');if(_cm&&!_cm.value)_cm.value=today().slice(0,7);
+  prideFilterDashInit();
   prideCorpDash();
 }
 /* ================= CORPORATE REPORTS (dashboard) ================= */
@@ -5043,18 +5084,51 @@ function prideRenderRate(){
 }
 
 /* ---------- 8. DAILY ---------- */
+function prideDailyNav(n){
+  const el=document.getElementById('pride_daily_d');
+  const d=new Date((el.value||today())+'T00:00:00');d.setDate(d.getDate()+n);
+  el.value=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+  prideRenderDaily();
+}
 function prideRenderDaily(){
   const d=document.getElementById('pride_daily_d').value||today();
   const bills=P_BILLS.filter(b=>b.date===d).sort((a,b)=>(a.billNo||'').localeCompare(b.billNo||''));
-  const iss=P_ISSUES.filter(s=>s.date===d);
+  const iss=P_ISSUES.filter(s=>s.date===d).sort((a,b)=>(a.no||'').localeCompare(b.no||''));
   const bt=prideR2(bills.reduce((a,b)=>a+(+b.total||0),0));
   const it=prideR2(iss.reduce((a,s)=>a+(+s.total||0),0));
-  let h='<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px">'+prideKPI('Kharid ('+fmtD(d)+')',inr(bt),bills.length+' bills')+prideKPI('Issue ('+fmtD(d)+')',inr(it),iss.length+' issues')+'</div>';
-  h+='<h4>Kharid Bills</h4><div class="table-scroll"><table><tr><th>Bill No</th><th>Vendor</th><th>Items</th><th>Total</th></tr>'+
-    (bills.map(b=>'<tr><td><b>'+esc(b.billNo)+'</b></td><td>'+esc(b.vendor)+'</td><td style="text-align:center">'+(b.items||[]).length+'</td><td style="text-align:right">'+inr(b.total)+'</td></tr>').join('')||'<tr><td colspan="4" style="color:var(--ink3)">Koi kharid nahi</td></tr>')+'</table></div>';
-  h+='<h4 style="margin-top:10px">Dept Issues</h4><div class="table-scroll"><table><tr><th>Dept</th><th>Items</th><th>Total</th><th>Remark</th></tr>'+
-    (iss.map(s=>'<tr><td>'+esc(s.dept)+'</td><td style="text-align:center">'+(s.items||[]).length+'</td><td style="text-align:right">'+inr(s.total)+'</td><td>'+esc(s.remark||'')+'</td></tr>').join('')||'<tr><td colspan="4" style="color:var(--ink3)">Koi issue nahi</td></tr>')+'</table></div>';
+  const nv=new Set(bills.map(b=>b.vendor).filter(Boolean)).size;
+  const nl=bills.reduce((a,b)=>a+(b.items||[]).length,0);
+  const nd=new Set(iss.map(s=>s.dept).filter(Boolean)).size;
+  let h='<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px">'+
+    prideKPI('Kharid · '+fmtD(d),inr(bt),bills.length+' bills · '+nl+' lines')+
+    prideKPI('Vendors',nv,'suppliers')+
+    prideKPI('Issue · '+fmtD(d),inr(it),iss.length+' issues')+
+    prideKPI('Departments',nd,'depts')+
+    prideKPI('Net (Kharid − Issue)',inr(prideR2(bt-it)),bt>=it?'surplus':'deficit')+'</div>';
+  h+='<h4 style="margin:0 0 6px">PURCHASE — BILLS</h4><div class="table-scroll"><table><tr><th>Bill No</th><th>GRN No</th><th>Vendor</th><th style="text-align:center">Items</th><th style="text-align:right">Total</th></tr>'+
+    (bills.map(b=>'<tr><td><b>'+esc(b.billNo)+'</b></td><td>'+esc(b.grnNo||'—')+'</td><td>'+esc(b.vendor)+'</td><td style="text-align:center">'+(b.items||[]).length+'</td><td style="text-align:right">'+inr(b.total)+'</td></tr>').join('')||'<tr><td colspan="5" style="color:var(--ink3)">Koi kharid nahi</td></tr>')+
+    (bills.length?'<tr style="background:#eef5f2;font-weight:800"><td colspan="4" style="text-align:right">TOTAL</td><td style="text-align:right">'+inr(bt)+'</td></tr>':'')+'</table></div>';
+  h+='<h4 style="margin:12px 0 6px">DEPARTMENT ISSUES</h4><div class="table-scroll"><table><tr><th>Ref No</th><th>Department</th><th style="text-align:center">Items</th><th style="text-align:right">Total</th><th>Remark</th></tr>'+
+    (iss.map(s=>'<tr><td><b>'+esc(s.no)+'</b></td><td>'+esc(s.dept)+'</td><td style="text-align:center">'+(s.items||[]).length+'</td><td style="text-align:right">'+inr(s.total)+'</td><td>'+esc(s.remark||'')+'</td></tr>').join('')||'<tr><td colspan="5" style="color:var(--ink3)">Koi issue nahi</td></tr>')+
+    (iss.length?'<tr style="background:#eef5f2;font-weight:800"><td colspan="3" style="text-align:right">TOTAL</td><td style="text-align:right">'+inr(it)+'</td><td></td></tr>':'')+'</table></div>';
   document.getElementById('pride_daily_body').innerHTML=h;
+}
+function prideDailyPrint(){
+  const d=document.getElementById('pride_daily_d').value||today();
+  const bills=P_BILLS.filter(b=>b.date===d).sort((a,b)=>(a.billNo||'').localeCompare(b.billNo||''));
+  const iss=P_ISSUES.filter(s=>s.date===d).sort((a,b)=>(a.no||'').localeCompare(b.no||''));
+  if(!bills.length&&!iss.length){toast('Is din koi entry nahi',true);return;}
+  const bt=prideR2(bills.reduce((a,b)=>a+(+b.total||0),0)),it=prideR2(iss.reduce((a,s)=>a+(+s.total||0),0));
+  const th='border:1px solid #000;padding:5px;background:#f0f0f0',td='border:1px solid #000;padding:5px';
+  let body='<div style="font-size:12px;margin-bottom:8px">Date: <b>'+fmtD(d)+'</b> · Kharid <b>'+bt.toFixed(2)+'</b> ('+bills.length+' bills) · Issue <b>'+it.toFixed(2)+'</b> ('+iss.length+' issues)</div>';
+  if(bills.length){body+='<b>PURCHASE — BILLS</b><table style="width:100%;border-collapse:collapse;font-size:12px;margin:4px 0 10px"><tr>'+['Bill No','GRN No','Vendor','Items','Total'].map(c=>'<th style="'+th+'">'+c+'</th>').join('')+'</tr>'+
+    bills.map(b=>'<tr><td style="'+td+'"><b>'+esc(b.billNo)+'</b></td><td style="'+td+'">'+esc(b.grnNo||'—')+'</td><td style="'+td+'">'+esc(b.vendor)+'</td><td style="'+td+';text-align:center">'+(b.items||[]).length+'</td><td style="'+td+';text-align:right">'+(+b.total||0).toFixed(2)+'</td></tr>').join('')+
+    '<tr><td colspan="4" style="'+td+';text-align:right"><b>TOTAL</b></td><td style="'+td+';text-align:right"><b>'+bt.toFixed(2)+'</b></td></tr></table>';}
+  if(iss.length){body+='<b>DEPARTMENT ISSUES</b><table style="width:100%;border-collapse:collapse;font-size:12px;margin:4px 0"><tr>'+['Ref No','Department','Items','Total','Remark'].map(c=>'<th style="'+th+'">'+c+'</th>').join('')+'</tr>'+
+    iss.map(s=>'<tr><td style="'+td+'"><b>'+esc(s.no)+'</b></td><td style="'+td+'">'+esc(s.dept)+'</td><td style="'+td+';text-align:center">'+(s.items||[]).length+'</td><td style="'+td+';text-align:right">'+(+s.total||0).toFixed(2)+'</td><td style="'+td+'">'+esc(s.remark||'')+'</td></tr>').join('')+
+    '<tr><td colspan="3" style="'+td+';text-align:right"><b>TOTAL</b></td><td style="'+td+';text-align:right"><b>'+it.toFixed(2)+'</b></td><td style="'+td+'"></td></tr></table>';}
+  pridePrintHTML('Daily Summary',body);
+  toast('🖨 Daily Summary print ho raha hai');
 }
 
 /* ---------- 9. MONTHLY MIS ---------- */
@@ -5298,13 +5372,23 @@ function prideDEItemDel(id){
   prideRenderDE();toast('🗑 Item hataya');
 }
 /* --- bills --- */
+let PRIDE_DEBQ='',PRIDE_DEBV='';
 function prideDEBills(){
+  const vs=[...new Set(P_BILLS.map(b=>b.vendor).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
+  const q=norm(PRIDE_DEBQ),v=norm(PRIDE_DEBV);
+  const list=[...P_BILLS].sort((a,b)=>(b.date||'').localeCompare(a.date||'')).filter(b=>
+    (!q||norm(b.billNo).includes(q)||norm(b.vendor).includes(q)||norm(b.grnNo||'').includes(q))&&(!v||norm(b.vendor||'')===v));
   document.getElementById('pride-de-bills').innerHTML='<div style="font-size:12px;color:var(--ink3);margin-bottom:6px">Bill no, date, vendor, har line ki qty/rate edit · line add/remove · save par stock recalc.</div>'+
-  ([...P_BILLS].sort((a,b)=>(b.date||'').localeCompare(a.date||'')).map(b=>
+  '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">'+
+    '<input id="pride_deb_q" class="smini" placeholder="🔍 bill no / vendor / GRN" style="width:200px" value="'+esc(PRIDE_DEBQ)+'" oninput="PRIDE_DEBQ=this.value;prideDEBills()">'+
+    '<select id="pride_deb_v" class="smini" style="min-width:180px" onchange="PRIDE_DEBV=this.value;prideDEBills()"><option value="">Sab vendors</option>'+vs.map(x=>'<option value="'+esc(x)+'"'+(norm(x)===v?' selected':'')+'>'+esc(x)+'</option>').join('')+'</select>'+
+    '<span style="font-size:12px;color:var(--ink3);align-self:center">'+list.length+' / '+P_BILLS.length+' bills</span></div>'+
+  (list.map(b=>
     '<div class="card" style="margin-bottom:8px"><div class="card-body">'+
     '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><b>'+fmtD(b.date)+'</b><b>'+esc(b.billNo)+'</b><span>'+esc(b.vendor)+'</span><b style="margin-left:auto">'+inr(b.total)+'</b>'+
     '<button class="btn btn-sm" onclick="prideDEBillEdit(\''+b.id+'\')">✏️ Edit</button> <button class="btn btn-sm" onclick="prideBillDel(\''+b.id+'\')">🗑</button></div>'+
     '<div id="deb_'+b.id+'"></div></div></div>').join('')||'<div style="color:var(--ink3)">Koi bill nahi</div>');
+  const qi=document.getElementById('pride_deb_q');if(qi){qi.focus();qi.setSelectionRange(qi.value.length,qi.value.length);}
 }
 function prideDEBillEdit(id){
   const b=P_BILLS.find(x=>x.id===id);if(!b)return;
@@ -5747,6 +5831,63 @@ function prideLockClear(){
 }
 function prideRenderExport(){prideBackupInfo();prideLockInfo();}
 
+function prideFilterDashInit(){
+  const f=document.getElementById('pride_fd_from'),t=document.getElementById('pride_fd_to');
+  if(f&&!f.value){const d=new Date();f.value=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-01';}
+  if(t&&!t.value)t.value=today();
+  const vs=document.getElementById('pride_fd_vendor');
+  if(vs&&!vs.options.length){const v=[...new Set(P_BILLS.map(b=>b.vendor).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
+    vs.innerHTML='<option value="">Sab vendors</option>'+v.map(x=>'<option>'+esc(x)+'</option>').join('');}
+  const ds=document.getElementById('pride_fd_dept');
+  if(ds&&!ds.options.length)ds.innerHTML='<option value="">Sab departments</option>'+PRIDE_DEPTS.map(d=>'<option>'+esc(d)+'</option>').join('');
+  const gs=document.getElementById('pride_fd_grp');
+  if(gs&&!gs.options.length){const c=[...new Set(PRIDE_CATS.concat(P_ITEMS.map(i=>i.cat).filter(Boolean)))].sort();
+    gs.innerHTML='<option value="">Sab groups</option>'+c.map(x=>'<option>'+esc(x)+'</option>').join('');}
+  prideFilterDash();
+}
+function prideFilterDashClear(){
+  ['pride_fd_vendor','pride_fd_dept','pride_fd_grp'].forEach(id=>{document.getElementById(id).value='';});
+  prideFilterDashInit();
+}
+function prideFilterDash(){
+  const f=document.getElementById('pride_fd_from').value||'0000-00-00';
+  const t=document.getElementById('pride_fd_to').value||'9999-99-99';
+  const vv=norm(document.getElementById('pride_fd_vendor').value||'');
+  const dv=norm(document.getElementById('pride_fd_dept').value||'');
+  const gv=norm(document.getElementById('pride_fd_grp').value||'');
+  const bills=P_BILLS.filter(b=>(b.date||'')>=f&&(b.date||'')<=t&&(!vv||norm(b.vendor||'')===vv));
+  const iss=P_ISSUES.filter(s=>(s.date||'')>=f&&(s.date||'')<=t&&(!dv||norm(s.dept||'')===dv));
+  const bt=prideR2(bills.reduce((a,b)=>a+(+b.total||0),0));
+  const it=prideR2(iss.reduce((a,s)=>a+(+s.total||0),0));
+  const nl=bills.reduce((a,b)=>a+(b.items||[]).length,0);
+  const nv=new Set(bills.map(b=>b.vendor).filter(Boolean)).size;
+  document.getElementById('pride_fd_kpi').innerHTML=
+    prideKPI('Kharid',inr(bt),bills.length+' bills · '+nl+' lines')+
+    prideKPI('Vendors',nv,'suppliers')+
+    prideKPI('Issue',inr(it),iss.length+' issues');
+  // top vendors
+  const vm={};bills.forEach(b=>{const k=b.vendor||'(no vendor)';vm[k]=vm[k]||{bills:0,tot:0};vm[k].bills++;vm[k].tot=prideR2(vm[k].tot+(+b.total||0));});
+  const vt=Object.keys(vm).sort((a,b)=>vm[b].tot-vm[a].tot).slice(0,10);
+  // dept breakdown
+  const dm={};iss.forEach(s=>{const k=s.dept||'(no dept)';dm[k]=dm[k]||{n:0,tot:0};dm[k].n++;dm[k].tot=prideR2(dm[k].tot+(+s.total||0));});
+  const dt=Object.keys(dm).sort((a,b)=>dm[b].tot-dm[a].tot);
+  // group breakdown (purchase lines)
+  const gm={};bills.forEach(b=>(b.items||[]).forEach(l=>{const it2=prideItem(l.id);const g=it2?it2.cat:'';
+    if(gv&&norm(g)!==gv)return;gm[g||'(no group)']=prideR2((gm[g||'(no group)']||0)+(+l.qty||0)*(+l.rate||0));}));
+  const gt=Object.keys(gm).sort((a,b)=>gm[b]-gm[a]);
+  let h='<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px">';
+  h+='<div><h4 style="margin:6px 0">TOP VENDORS</h4><div class="table-scroll"><table><tr><th>Vendor</th><th style="text-align:center">Bills</th><th style="text-align:right">Total</th></tr>'+
+    (vt.map(v=>'<tr><td>'+esc(v)+'</td><td style="text-align:center">'+vm[v].bills+'</td><td style="text-align:right">'+inr(vm[v].tot)+'</td></tr>').join('')||'<tr><td colspan="3" style="color:var(--ink3)">Koi data nahi</td></tr>')+'</table></div></div>';
+  h+='<div><h4 style="margin:6px 0">DEPARTMENT BREAKDOWN</h4><div class="table-scroll"><table><tr><th>Department</th><th style="text-align:center">Issues</th><th style="text-align:right">Total</th></tr>'+
+    (dt.map(v=>'<tr><td>'+esc(v)+'</td><td style="text-align:center">'+dm[v].n+'</td><td style="text-align:right">'+inr(dm[v].tot)+'</td></tr>').join('')||'<tr><td colspan="3" style="color:var(--ink3)">Koi data nahi</td></tr>')+'</table></div></div>';
+  h+='<div><h4 style="margin:6px 0">GROUP BREAKDOWN'+(gv?' ('+esc(document.getElementById('pride_fd_grp').value)+')':'')+'</h4><div class="table-scroll"><table><tr><th>Group</th><th style="text-align:right">Purchase Value</th></tr>'+
+    (gt.map(g=>'<tr><td>'+esc(g)+'</td><td style="text-align:right">'+inr(gm[g])+'</td></tr>').join('')||'<tr><td colspan="2" style="color:var(--ink3)">Koi data nahi</td></tr>')+'</table></div></div>';
+  h+='</div>';
+  document.getElementById('pride_fd_body').innerHTML=h;
+}
+
+function prideDashSlipView(id){prideTab('search');setTimeout(()=>prideSlipView(id),80);}
+
 /* ---------- REPORTS (Accounts + Store, date-wise) ---------- */
 const PRIDE_REPORTS=[
  {id:'pur_detail',g:'Accounts',n:'Item Wise Purchase Detail'},
@@ -6087,6 +6228,9 @@ function prideRepInit(){
   const f=document.getElementById('pride_rep_from'),t=document.getElementById('pride_rep_to');
   if(f&&!f.value)f.value=today();
   if(t&&!t.value)t.value=today();
+  const rq=document.getElementById('pride_rep_q');
+  if(rq&&!rq.dataset.sg){rq.dataset.sg='1';
+    prideSuggFor(rq,document.getElementById('pride_rep_vsugg'),prideVendList,s=>{rq.value=s.v.name;prideRepRun();});}
 }
 function prideRepRun(){
   const id=document.getElementById('pride_rep_sel').value;
@@ -6102,10 +6246,12 @@ function prideRepRun(){
   if(gf&&gi>=0)rows=rows.filter(x=>String(x[gi])===gf);
   if(q)rows=rows.filter(x=>x.join(' ').toLowerCase().includes(q));
   PRIDE_REP_CUR={title:r.title,sub:r.sub,cols:r.cols,rows:rows,foot:r.foot,n:r.rows.length};
+  const drillBox=document.getElementById('pride_rep_drill');if(drillBox)drillBox.innerHTML='';
+  const drillSup=(id==='pur_register');
   const box=document.getElementById('pride_rep_out');
   box.innerHTML='<div style="margin-bottom:8px"><b style="font-size:15px">'+r.title+'</b><div style="font-size:12px;color:var(--ink3)">'+r.sub+' · '+rows.length+' rows'+(rows.length!==r.rows.length?' (filter se '+r.rows.length+' me se)':'')+'</div></div>'+
     '<div class="table-scroll"><table><tr>'+r.cols.map(c=>'<th>'+c+'</th>').join('')+'</tr>'+
-    rows.slice(0,500).map(x=>'<tr>'+x.map(c=>'<td>'+c+'</td>').join('')+'</tr>').join('')+
+    rows.slice(0,500).map(x=>'<tr>'+x.map((c,ci)=>(drillSup&&ci===0)?'<td><a href="javascript:void(0)" data-v="'+esc(String(c))+'" onclick="prideRepDrillSup(this.dataset.v)" style="font-weight:700">👉 '+esc(String(c))+'</a></td>':'<td>'+c+'</td>').join('')+'</tr>').join('')+
     (r.foot?'<tr style="background:#eef5f2;font-weight:800">'+r.foot.map(c=>'<td>'+c+'</td>').join('')+'</tr>':'')+
     '</table></div>'+(rows.length>500?'<div style="font-size:12px;color:var(--ink3);margin-top:4px">Pehli 500 rows dikh rahi hain — poori Excel me milegi</div>':'');
   box.scrollIntoView({behavior:'smooth',block:'nearest'});
@@ -6126,8 +6272,27 @@ function prideRepPrint(){
   pridePrintHTML(c.title+' ('+c.sub+')',body);
 }
 
+function prideRepDrillSup(v){
+  const d=prideRepDates();
+  const rows=prideBillsIn(d.from,d.to).filter(b=>norm(b.vendor||'')===norm(v)).sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+  const box=document.getElementById('pride_rep_drill');if(!box)return;
+  if(!rows.length){box.innerHTML='<div style="color:var(--ink3)">Is period me is supplier ka koi bill nahi</div>';return;}
+  const tot=prideR2(rows.reduce((a,b)=>a+(+b.total||0),0));
+  box.innerHTML='<div class="card" style="margin:0"><div class="card-head"><h3>🧾 '+esc(v)+' — '+rows.length+' bills ('+fmtD(d.from)+' se '+fmtD(d.to)+')</h3><button class="btn btn-sm" onclick="document.getElementById(\'pride_rep_drill\').innerHTML=\'\'">✕</button></div>'+
+    '<div class="card-body"><div class="table-scroll"><table><tr><th>Date</th><th>GRN No</th><th>Bill No</th><th>Items</th><th style="text-align:right">Total</th><th></th></tr>'+
+    rows.map(b=>'<tr><td>'+fmtD(b.date)+'</td><td>'+esc(b.grnNo||'—')+'</td><td><b>'+esc(b.billNo)+'</b></td><td style="text-align:center">'+(b.items||[]).length+'</td><td style="text-align:right"><b>'+inr(b.total)+'</b></td>'+
+      '<td style="white-space:nowrap"><button class="btn btn-sm" onclick="prideRepBillGo(\''+b.id+'\',\'view\')">👁</button> <button class="btn btn-sm" onclick="prideRepBillGo(\''+b.id+'\',\'print\')">🖨</button> <button class="btn btn-sm" onclick="prideRepBillGo(\''+b.id+'\',\'edit\')">✏️</button></td></tr>').join('')+
+    '</table></div><div style="margin-top:8px;text-align:right"><b>Total: '+inr(tot)+'</b></div></div></div>';
+  box.scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+function prideRepBillGo(id,act){
+  if(act==='print'){prideBillPrint(id);return;}
+  if(act==='view'){prideTab('bills');setTimeout(()=>prideBillView(id),60);return;}
+  if(act==='edit'){if(!prideNeedPM()){toast('Sirf Purchase Manager',true);return;}prideTab('dataeditor');prideDETab('bills');setTimeout(()=>prideDEBillEdit(id),120);return;}
+}
+
 /* ---------- REQUISITION + MATERIAL ISSUE ---------- */
-let PRIDE_REQ_EDIT=null, PRIDE_MI_EDIT=null, PRIDE_MI_ROWS=[];
+let PRIDE_REQ_EDIT=null, PRIDE_MI_EDIT=null, PRIDE_MI_ROWS=[], PRIDE_MI_LOTKEY='';
 
 /* ===== requisition ===== */
 function prideReqNo(){
@@ -6266,7 +6431,7 @@ function prideMIInit(){
       document.getElementById('pride_mi_rate').value=prideLastRate(s.it.id)||prideOldRate(s.it.name)||s.it.rate||'';
       document.getElementById('pride_mi_stock').value=(P_STOCK[s.it.id]||0);
       prideMIReqQty(s.it.id);
-      prideMIAmt();document.getElementById('pride_mi_qty').focus();
+      prideMIAmt();prideMILotsShow();document.getElementById('pride_mi_qty').focus();
     });
     document.getElementById('pride_mi_qty').addEventListener('input',prideMIAmt);
   }
@@ -6304,7 +6469,48 @@ function prideMIAmt(){
   const r=numParse(document.getElementById('pride_mi_rate').value);
   document.getElementById('pride_mi_amt').value=(q&&r)?prideR2(q*r).toFixed(2):'';
 }
+/* ===== lot / batch-wise issue (FIFO) ===== */
+function prideItemLots(itemId,opts){
+  opts=opts||{};
+  const lots=[];
+  const it=prideItem(itemId);
+  if(it&&+it.openQty>0)lots.push({key:'OPEN',date:'2026-10-01',grn:'Opening',vendor:'',rec:+it.openQty,bal:+it.openQty});
+  P_BILLS.forEach(b=>{(b.items||[]).forEach((l,ix)=>{
+    if(l.id!==itemId)return;
+    const q=prideR2((+l.qty||0)+(+l.fqty||0));if(q<=0)return;
+    lots.push({key:b.id+'#'+ix,date:b.date||'',grn:b.grnNo||b.billNo||'',vendor:b.vendor||'',rec:q,bal:q});
+  });});
+  lots.sort((a,b)=>(a.date||'').localeCompare(b.date||''));
+  let untagged=0;
+  const consume=(l,q)=>{const lt=l.lotKey&&lots.find(x=>x.key===l.lotKey);
+    if(lt)lt.bal=prideR2(lt.bal-q);else untagged=prideR2(untagged+q);};
+  P_ISSUES.forEach(s=>{
+    if(opts.excludeId&&s.id===opts.excludeId)return;
+    (s.items||[]).forEach(l=>{if(l.id!==itemId||!(+l.qty>0))return;consume(l,+l.qty);});
+  });
+  (opts.extra||[]).forEach(l=>{if(l.id!==itemId||!(+l.qty>0))return;consume(l,+l.qty);});
+  lots.forEach(lt=>{if(untagged>0){const t=Math.min(lt.bal,untagged);lt.bal=prideR2(lt.bal-t);untagged=prideR2(untagged-t);}});
+  lots.forEach(lt=>{lt.bal=prideR2(Math.max(0,lt.bal));});
+  return lots;
+}
+function prideMILotsShow(){
+  const box=document.getElementById('pride_mi_lotbox');if(!box)return;
+  const pi=document.getElementById('pride_mi_prod');
+  const it=pi._it||prideItemByName((pi.value||'').trim());
+  if(!it||!it.id){box.innerHTML='';PRIDE_MI_LOTKEY='';return;}
+  const lots=prideItemLots(it.id,{excludeId:PRIDE_MI_EDIT||'',extra:PRIDE_MI_ROWS});
+  const tot=prideR2(lots.reduce((a,l)=>a+l.bal,0));
+  const opts=lots.filter(l=>l.bal>0).map(l=>'<option value="'+l.key+'">'+fmtD(l.date)+(l.grn?' · '+esc(l.grn):'')+' — bal '+l.bal+' '+esc(it.unit||'')+'</option>').join('');
+  box.innerHTML='<div style="background:#f0f7f4;border:1px solid #cfe3d8;border-radius:8px;padding:8px 10px;font-size:12px;display:flex;gap:10px;flex-wrap:wrap;align-items:center">'+
+    '<span>📦 Total stock: <b>'+tot+' '+esc(it.unit||'')+'</b></span>'+
+    '<label style="color:var(--ink2)">Konsa lot issue karna hai?</label>'+
+    '<select id="pride_mi_lot" class="smini" style="min-width:280px" onchange="PRIDE_MI_LOTKEY=this.value">'+
+    '<option value="">Auto — sabse purana lot pehle</option>'+opts+'</select>'+
+    (tot<=0?'<span style="color:#b00;font-weight:700">Stock nahi hai</span>':'')+'</div>';
+  PRIDE_MI_LOTKEY='';
+}
 function prideMIAdd(){
+
   if(!prideNeedPM())return;
   const pi=document.getElementById('pride_mi_prod');
   let it=pi._it||prideItemByName((pi.value||'').trim());
@@ -6316,13 +6522,23 @@ function prideMIAdd(){
   if(qty<=0){toast('Qty likho',true);return;}
   const rate=numParse(document.getElementById('pride_mi_rate').value)||(+it.rate||0);
   if(PRIDE_MI_ROWS.some(x=>x.id===it.id)){toast('Ye item pehle se joda hai',true);return;}
-  PRIDE_MI_ROWS.push({id:it.id,name:it.name,unit:it.unit,qty:prideR2(qty),rate:prideR2(rate),amt:prideR2(qty*rate)});
+  const lotSel=document.getElementById('pride_mi_lot');
+  const lotKey=lotSel?lotSel.value:'';
+  let lotLabel='';
+  if(lotKey){
+    const lots=prideItemLots(it.id,{excludeId:PRIDE_MI_EDIT||'',extra:PRIDE_MI_ROWS});
+    const lt=lots.find(x=>x.key===lotKey);
+    if(!lt||lt.bal<=0){toast('Ye lot khatm ho gaya — Auto chuno',true);return;}
+    if(qty>lt.bal+0.0001){toast('Is lot me sirf '+lt.bal+' '+it.unit+' hai — qty kam karo ya Auto chuno',true);return;}
+    lotLabel=lotSel.options[lotSel.selectedIndex].text;
+  }
+  PRIDE_MI_ROWS.push({id:it.id,name:it.name,unit:it.unit,qty:prideR2(qty),rate:prideR2(rate),amt:prideR2(qty*rate),lotKey:lotKey,lotLabel:lotLabel});
   pi.value='';pi._it=null;
   ['pride_mi_rate','pride_mi_amt','pride_mi_stock','pride_mi_reqqty','pride_mi_qty'].forEach(id=>document.getElementById(id).value='');
-  prideMIRender();pi.focus();
+  prideMIRender();prideMILotsShow();pi.focus();
 }
 function prideMIRender(){
-  document.getElementById('pride_mi_rows').innerHTML=PRIDE_MI_ROWS.map((l,i)=>'<tr><td style="text-align:center">'+(i+1)+'</td><td><b>'+esc(l.name)+'</b></td><td>'+esc(l.unit||'')+'</td><td style="text-align:center">'+(P_STOCK[l.id]||0)+'</td><td style="text-align:center">'+l.qty+'</td><td style="text-align:right">'+l.rate+'</td><td style="text-align:right">'+l.amt.toFixed(2)+'</td><td><button class="prow-del" onclick="prideMIDelRow('+i+')" tabindex="-1">✕</button></td></tr>').join('');
+  document.getElementById('pride_mi_rows').innerHTML=PRIDE_MI_ROWS.map((l,i)=>'<tr><td style="text-align:center">'+(i+1)+'</td><td><b>'+esc(l.name)+'</b></td><td>'+esc(l.unit||'')+'</td><td style="text-align:center">'+(P_STOCK[l.id]||0)+'</td><td style="text-align:center">'+l.qty+'</td><td style="text-align:right">'+l.rate+'</td><td style="text-align:right">'+l.amt.toFixed(2)+'</td><td style="font-size:11px;color:var(--ink2)">'+esc(l.lotLabel||'Auto')+'</td><td><button class="prow-del" onclick="prideMIDelRow('+i+')" tabindex="-1">✕</button></td></tr>').join('');
   document.getElementById('pride_mi_total').value=prideR2(PRIDE_MI_ROWS.reduce((a,l)=>a+l.amt,0)).toFixed(2);
 }
 function prideMIDelRow(i){PRIDE_MI_ROWS.splice(i,1);prideMIRender();}
@@ -6338,7 +6554,7 @@ function prideMISave(){
   const short=PRIDE_MI_ROWS.filter(l=>l.qty>(P_STOCK[l.id]||0)+0.0001);
   if(short.length&&!confirm('Stock kam hai: '+short.map(s=>s.name+' (stock '+(P_STOCK[s.id]||0)+')').join(', ')+'\nPhir bhi issue karein?'))return;
   const total=prideR2(PRIDE_MI_ROWS.reduce((a,l)=>a+l.amt,0));
-  const items=PRIDE_MI_ROWS.map(l=>({id:l.id,name:l.name,qty:l.qty,rate:l.rate,amt:l.amt}));
+  const items=PRIDE_MI_ROWS.map(l=>({id:l.id,name:l.name,unit:l.unit,qty:l.qty,rate:l.rate,amt:l.amt,lotKey:l.lotKey||'',lotLabel:l.lotLabel||''}));
   if(PRIDE_MI_EDIT){
     const doc=P_ISSUES.find(x=>x.id===PRIDE_MI_EDIT);
     if(!doc){toast('Issue nahi mila',true);return;}
@@ -6372,7 +6588,8 @@ function prideMILoad(){
   document.getElementById('pride_mi_remark').value=s.remark||'';
   prideMIReqFill();
   if(s.reqNo){const rq=document.getElementById('pride_mi_req');if(![...rq.options].some(o=>o.value===s.reqNo)){const o=document.createElement('option');o.value=s.reqNo;o.textContent=s.reqNo+' (closed)';rq.appendChild(o);}rq.value=s.reqNo;}
-  PRIDE_MI_ROWS=(s.items||[]).map(l=>{const it=prideItem(l.id);return {id:l.id,name:l.name,unit:it?it.unit:'',qty:l.qty,rate:l.rate,amt:l.amt};});
+  PRIDE_MI_ROWS=(s.items||[]).map(l=>{const it=prideItem(l.id);return {id:l.id,name:l.name,unit:it?it.unit:(l.unit||''),qty:l.qty,rate:l.rate,amt:l.amt,lotKey:l.lotKey||'',lotLabel:l.lotLabel||''};});
+  PRIDE_MI_LOTKEY='';const _lb=document.getElementById('pride_mi_lotbox');if(_lb)_lb.innerHTML='';
   prideMIRender();
   toast('📝 '+no+' load ho gaya — edit karke Save dabao');
 }
@@ -6381,6 +6598,7 @@ function prideMIClear(){
   ['pride_mi_load','pride_mi_remark','pride_mi_no','pride_mi_date'].forEach(id=>document.getElementById(id).value='');
   const pi=document.getElementById('pride_mi_prod');pi.value='';pi._it=null;
   ['pride_mi_rate','pride_mi_amt','pride_mi_stock','pride_mi_reqqty','pride_mi_qty'].forEach(id=>document.getElementById(id).value='');
+  PRIDE_MI_LOTKEY='';const _lb2=document.getElementById('pride_mi_lotbox');if(_lb2)_lb2.innerHTML='';
   prideMIInit();prideMIRender();
 }
 
