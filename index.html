@@ -1284,7 +1284,7 @@ tfoot td{font-weight:800;background:#f0f5f3;border-top:2px solid var(--teal);fon
         </table></div>
         <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;align-items:center">
           <button class="btn btn-sm" onclick="prideEntAddRow()">＋ Row Jodo</button>
-          <span style="font-size:12px;color:var(--ink3)">Enter dabao → agle field me jao · item me 2 akshar likho → list aayegi</span>
+          <span style="font-size:12px;color:var(--ink3)">Enter dabao → agle field me jao · item me 2 akshar likho → list aayegi · aakhri row bharte hi nayi row khud jud jayegi</span>
         </div>
         <div class="pent-grid" style="margin-top:10px;grid-template-columns:repeat(auto-fit,minmax(120px,1fr))">
           <div><label>Cartage</label><input id="pride_ent_cart" class="smini" type="number" min="0" step="any" value="0" style="width:100%"></div>
@@ -4417,10 +4417,24 @@ function prideImpSave(){
 function prideSuggFor(input,box,getList,onPick){
   let items=[],idx=-1;
   const hide=()=>{box.classList.add('hide');items=[];idx=-1;};
+  const place=()=>{
+    const r=input.getBoundingClientRect();
+    box.style.position='fixed';
+    box.style.left=Math.max(4,r.left)+'px';
+    box.style.right='auto';
+    box.style.width=Math.max(r.width,200)+'px';
+    box.style.zIndex='9999';
+    box.style.margin='0';
+    box.classList.remove('hide');
+    const h=box.offsetHeight||200;
+    let top=r.bottom+4;
+    if(top+h>window.innerHeight-8)top=Math.max(8,r.top-h-4);
+    box.style.top=top+'px';
+  };
   const render=()=>{
     if(!items.length){hide();return;}
     box.innerHTML=items.map((it,i)=>'<div class="psugg-it'+(i===idx?' on':'')+'" data-i="'+i+'">'+it.h+(it.s?'<small>'+it.s+'</small>':'')+'</div>').join('');
-    box.classList.remove('hide');
+    place();
     box.querySelectorAll('.psugg-it').forEach(el=>{
       el.addEventListener('mousedown',e=>{e.preventDefault();const s=items[+el.dataset.i];hide();onPick(s);});
     });
@@ -4438,6 +4452,12 @@ function prideSuggFor(input,box,getList,onPick){
     else if(e.key==='Escape'){hide();}
   });
   input.addEventListener('blur',()=>setTimeout(hide,180));
+}
+if(!window._psuggGlob){
+  window._psuggGlob=1;
+  const _psuggHideAll=()=>{try{document.querySelectorAll('.psugg').forEach(b=>b.classList.add('hide'));}catch(e){}};
+  window.addEventListener('scroll',_psuggHideAll,true);
+  window.addEventListener('resize',_psuggHideAll);
 }
 function prideVendList(q){
   const seen={},out=[];
@@ -4587,11 +4607,25 @@ function prideEntAddRow(){
   ['.e_qty','.e_fqty','.e_rate','.e_mrp','.e_discp','.e_taxp'].forEach(c=>{
     tr.querySelector(c).addEventListener('input',()=>prideEntRowCalc(tr));
   });
+  tr.querySelector('.e_exp').addEventListener('change',()=>prideEntExpCheck(tr));
   prideEntRenumber();
   if(!tb.dataset.init){tb.dataset.init='1';prideEntAddRow();}
   return tr;
 }
 function prideEntDelRow(btn){btn.closest('tr').remove();prideEntRenumber();prideEntTotal();}
+function prideEntExpCheck(tr){
+  const inp=tr.querySelector('.e_exp');if(!inp)return;
+  const v=inp.value;inp.style.borderColor='';inp.style.background='';
+  if(!v)return;
+  const t=today();
+  if(v<t){
+    inp.style.borderColor='#c0392b';inp.style.background='#fdecea';
+    toast('⚠️ Expiry beet chuki hai: '+(tr.querySelector('.e_item').value||'item').trim(),true);
+    return;
+  }
+  const days=Math.round((new Date(v)-new Date(t))/86400000);
+  if(days<=30){inp.style.borderColor='#e67e22';inp.style.background='#fef5e7';}
+}
 function prideEntRowCalc(tr){
   const v=c=>numParse(tr.querySelector(c).value);
   const qty=v('.e_qty'),rate=v('.e_rate'),discp=v('.e_discp'),taxp=v('.e_taxp');
@@ -4603,6 +4637,18 @@ function prideEntRowCalc(tr){
   tr.querySelector('.e_ltot').value=ltot?ltot.toFixed(2):'';
   tr._calc={amt:amt,disc:disc,tax:tax,ltot:ltot};
   prideEntTotal();
+  prideEntMaybeAddRow(tr);
+}
+/* aakhri row me item+qty bharte hi nayi khaali row jod do */
+function prideEntMaybeAddRow(tr){
+  const tb=document.getElementById('pride_ent_rows');
+  if(!tb||tr!==tb.lastElementChild)return;
+  const nm=(tr.querySelector('.e_item').value||'').trim();
+  const qty=numParse(tr.querySelector('.e_qty').value);
+  if(nm&&qty>0){
+    const ntr=prideEntAddRow();
+    if(ntr){const inp=ntr.querySelector('.e_item');}
+  }
 }
 function prideEntTotal(){
   let sub=0;
@@ -4618,6 +4664,24 @@ function prideEntTotal(){
   document.getElementById('pride_ent_total').value=tot.toFixed(2);
   return {sub:sub,tot:tot,ro:ro};
 }
+/* bilkul ek jaisi lines (item+unit+rate+disc+tax+expiry+mrp+des) ek me jod do */
+function prideEntMergeDupes(raws){
+  const merged=[];let count=0;
+  raws.forEach(r=>{
+    const key=norm(r.name)+'|'+r.unit+'|'+r.rate+'|'+r.discPct+'|'+r.taxPct+'|'+(r.expiry||'')+'|'+r.mrp+'|'+norm(r.des||'');
+    const ex=merged.find(m=>m._key===key);
+    if(ex){
+      ex.qty=prideR2(ex.qty+r.qty);ex.fqty=prideR2(ex.fqty+r.fqty);
+      ex.amt=prideR2(ex.qty*ex.rate);
+      ex.discAmt=prideR2(ex.amt*ex.discPct/100);
+      ex.taxAmt=prideR2((ex.amt-ex.discAmt)*ex.taxPct/100);
+      ex.lineTotal=prideR2(ex.amt-ex.discAmt+ex.taxAmt);
+      count++;
+    }else{r._key=key;merged.push(r);}
+  });
+  merged.forEach(m=>delete m._key);
+  return {rows:merged,merged:count};
+}
 function prideEntSave(){
   if(!prideNeedPM())return;
   const g=n=>document.getElementById(n).value.trim();
@@ -4630,7 +4694,7 @@ function prideEntSave(){
   if(!no){toast('Invoice No likho',true);return;}
   const lkEnt=prideLockBlocked(dt);if(lkEnt){toast(lkEnt,true);return;}
   const dupEnt=prideDupBill(vendor,no,null);if(dupEnt){toast(prideDupMsg(dupEnt),true);return;}
-  const raws=[];
+  let raws=[];
   document.querySelectorAll('#pride_ent_rows tr').forEach(tr=>{
     const nm=tr.querySelector('.e_item').value.trim();
     const qty=numParse(tr.querySelector('.e_qty').value);
@@ -4648,6 +4712,11 @@ function prideEntSave(){
     }
   });
   if(!raws.length){toast('Kam se kam ek item ki qty likho',true);return;}
+  const mg=prideEntMergeDupes(raws);raws=mg.rows;
+  if(mg.merged)toast('ℹ️ '+mg.merged+' duplicate line'+(mg.merged>1?'s':'')+' merge ho gayi (same item + rate)');
+  const billDt=(document.getElementById('pride_ent_date').value||'').trim()||today();
+  const expPast=raws.filter(r=>r.expiry&&r.expiry<billDt);
+  if(expPast.length&&!confirm('⚠️ '+expPast.length+' line me expiry date beet chuki hai:\n'+expPast.map(r=>r.name+' ('+r.expiry+')').join('\n')+'\n\nPhir bhi save karein?'))return;
   const head={grnNo:grnNo,dt:dt,vendor:vendor,no:no,
     chNo:g('pride_ent_chno'),chDt:g('pride_ent_chdt'),invDt:g('pride_ent_invdt')||dt,
     pay:document.getElementById('pride_ent_pay').value,remark:g('pride_ent_remark'),
