@@ -4004,7 +4004,7 @@ const PRIDE_LS={items:'ginger_pride_items_v1',bills:'ginger_pride_bills_v1',issu
 const PRIDE_FB={items:'pm_pride_items',bills:'pm_pride_bills',issues:'pm_pride_issues',audit:'pm_pride_audit',vendors:'pm_pride_vendors',reqs:'pm_pride_reqs',po:'pm_pride_po'};
 const PRIDE_SEEDFLAG='ginger_pride_seedpushed_v1';
 let PRIDE_TAB='dash', PRIDE_DETAB='items';
-let P_ITEMS=[], P_BILLS=[], P_ISSUES=[], P_AUDIT=[], P_VENDORS=[], P_REQS=[];
+let P_ITEMS=[], P_BILLS=[], P_ISSUES=[], P_AUDIT=[], P_VENDORS=[], P_REQS=[], P_PO=[], PRIDE_PO_ROWS=[];
 let P_STOCK={};
 function prideR2(n){return Math.round((+n||0)*100)/100;}
 function prideItem(id){return P_ITEMS.find(i=>i.id===id);}
@@ -6244,8 +6244,7 @@ const PRIDE_PO_TERMS=[
   'Payment as per agreed credit terms after satisfactory receipt of goods.',
   'This PO is valid only for the items and quantities mentioned above.'
 ];
-let P_PO=[];
-let PRIDE_PO_ROWS=[];
+/* P_PO aur PRIDE_PO_ROWS pride_js.inc me declare hain (init order ke liye) */
 
 function pridePOLoadLocal(){P_PO=prideLSGet(PRIDE_LS.po,[]);}
 function pridePONext(){
