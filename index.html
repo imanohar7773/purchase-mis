@@ -1191,7 +1191,7 @@ tfoot td{font-weight:800;background:#f0f5f3;border-top:2px solid var(--teal);fon
     <button onclick="prideTab('export')" id="np-export" class="pm-only">⬇ Export</button>
     <button onclick="prideTab('reports')" id="np-reports">📑 Reports</button>
     <button onclick="prideTab('req')" id="np-req" class="pm-only">📝 Requisition</button>
-    <button onclick="prideTab('missue')" id="np-missue" class="pm-only">📤 Material Issue</button>
+    <button onclick="prideTab('missue')" id="np-missue" class="pm-only">📤 Material Issue</button> <button onclick="prideTab('po')" id="np-po" class="pm-only">🧾 PO</button>
   </div>
 
   <!-- 1. DASHBOARD -->
@@ -1565,7 +1565,37 @@ tfoot td{font-weight:800;background:#f0f5f3;border-top:2px solid var(--teal);fon
       </div></div>
   </div>
 
-  <datalist id="pride_vendor_dl"></datalist>
+    <div id="pride-po" class="pride-sub hide">
+    <div class="card"><div class="card-head"><h2>🧾 Purchase Order</h2></div>
+      <div class="card-body" id="pride_po_card">
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;align-items:end">
+          <div><label style="font-size:11px;color:var(--ink3)">PO No</label><br><input id="pride_po_no" class="smini" readonly style="width:110px"></div>
+          <div><label style="font-size:11px;color:var(--ink3)">Date</label><br><input id="pride_po_date" class="smini" type="date" style="width:150px"></div>
+          <div style="flex:1;min-width:200px"><label style="font-size:11px;color:var(--ink3)">Vendor</label><br><input id="pride_po_vendor" class="smini" list="pride_vendor_dl" style="width:100%" placeholder="Vendor dhoondo/likho"></div>
+          <div><label style="font-size:11px;color:var(--ink3)">Delivery by</label><br><input id="pride_po_deliv" class="smini" type="date" style="width:150px"></div>
+          <div><label style="font-size:11px;color:var(--ink3)">Payment terms</label><br><input id="pride_po_pay" class="smini" style="width:150px"></div>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;align-items:end">
+          <div style="flex:2;min-width:220px;position:relative"><label style="font-size:11px;color:var(--ink3)">Item</label><br><input id="pride_po_prod" class="smini" style="width:100%" placeholder="Item dhoondo"><div id="pride_po_sugg" class="psugg hide"></div></div>
+          <div><label style="font-size:11px;color:var(--ink3)">Qty</label><br><input id="pride_po_qty" class="smini" type="number" min="0" step="any" style="width:80px"></div>
+          <div><label style="font-size:11px;color:var(--ink3)">Rate</label><br><input id="pride_po_rate" class="smini" type="number" min="0" step="any" style="width:100px"></div>
+          <div><label style="font-size:11px;color:var(--ink3)">Amt</label><br><input id="pride_po_amt" class="smini" readonly style="width:100px"></div>
+          <div><button class="btn btn-primary btn-sm" onclick="pridePOAdd()">＋ Jodo</button></div>
+        </div>
+        <div class="table-scroll"><table><thead><tr><th style="width:36px">#</th><th>Item</th><th>Unit</th><th>Qty</th><th>Rate</th><th>Amount</th><th style="width:40px"></th></tr></thead><tbody id="pride_po_rows"></tbody></table></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;align-items:end">
+          <div style="flex:1;min-width:200px"><label style="font-size:11px;color:var(--ink3)">Remark</label><br><input id="pride_po_remark" class="smini" style="width:100%" placeholder="Optional"></div>
+          <div><label style="font-size:11px;color:var(--ink3)">Total</label><br><input id="pride_po_total" class="smini" readonly style="width:130px;font-weight:800"></div>
+          <div><button class="btn btn-primary btn-sm" onclick="pridePOSave()">✅ PO Save</button> <button class="btn btn-sm" onclick="pridePOClear()">Clear</button></div>
+        </div>
+      </div></div>
+    <div class="card hide" id="pride_po_preview_card" style="margin-top:12px"><div class="card-head"><h2>🖨 PO Preview</h2><button class="btn btn-primary btn-sm" onclick="pridePOPrintCur()">🖨 Print</button></div>
+      <div class="card-body"><div id="pride_po_preview"></div></div></div>
+    <div class="card" style="margin-top:12px"><div class="card-head"><h2>📋 PO History</h2><button class="btn btn-sm" onclick="pridePOExcel()">📊 Excel</button></div>
+      <div class="card-body"><div class="table-scroll"><table><thead><tr><th>PO No</th><th>Date</th><th>Vendor</th><th>Items</th><th>Total</th><th></th></tr></thead><tbody id="pride_po_hist"></tbody></table></div></div></div>
+  </div>
+
+<datalist id="pride_vendor_dl"></datalist>
   <div id="pridePrint" style="display:none"></div>
 </div>
 
@@ -3970,8 +4000,8 @@ const PRIDE_SEED=[{"id": "ps1", "name": "GINGER - TENT CARD [DIVINE GRAPHICS] /"
    Fresh start 01-Oct-2026. Purane data ko bilkul touch nahi karta. */
 const PRIDE_CATS=['ARCHIVED / INACTIVE ITEMS','BAKERY & FROZEN FOODS','BEVERAGES & CAFÉ OPERATIONS','DAIRY SUPPLY','DIRECT / VENDOR PROCUREMENTS','EQUIPMENT PURCHASE','FOOD & BEVERAGE SUPPLIES (FNB)','FRESH PRODUCE: VEGETABLES & FRUITS','GINGER – PRE-OPENING & TRANSITION STORE','GINGER – STAFF UNIFORM','GROCERY & GENERAL STORE','HOUSEKEEPING & CLEANING SUPPLIES','ICE CREAM','IT, ELECTRONICS & COMMUNICATION EQUIPMENT','KITCHEN MACHINERY & APPLIANCES','MAINTENANCE & ENGINEERING SUPPLIES','MEDICAL & FIRST AID SUPPLIES','MINI BAR INVENTORY & GUEST AMENITIES','STAFF APPAREL & LINEN INVENTORY','STATIONERY, PRINTING & OFFICE SUPPLIES'];
 const PRIDE_DEPTS=['ENGINEERING/MAINTENANCE','FINANCE & ACCOUNTS','FOOD & BEVERAGE (FNB) OPERATIONS','FRONT OFFICE / RECEPTION','GUEST SERVICES / CUSTOMER RELATIONS','HOUSEKEEPING','HUMAN RESOURCES (HR)','IT, ELECTRONICS & COMMUNICATION','KITCHEN OPERATIONS','LANDSCAPING & GARDENING','SALES AND MARKETING','SPA AND WELLNESS','STORE'];
-const PRIDE_LS={items:'ginger_pride_items_v1',bills:'ginger_pride_bills_v1',issues:'ginger_pride_issues_v1',audit:'ginger_pride_audit_v1',vendors:'ginger_pride_vendors_v1',reqs:'ginger_pride_reqs_v1'};
-const PRIDE_FB={items:'pm_pride_items',bills:'pm_pride_bills',issues:'pm_pride_issues',audit:'pm_pride_audit',vendors:'pm_pride_vendors',reqs:'pm_pride_reqs'};
+const PRIDE_LS={items:'ginger_pride_items_v1',bills:'ginger_pride_bills_v1',issues:'ginger_pride_issues_v1',audit:'ginger_pride_audit_v1',vendors:'ginger_pride_vendors_v1',reqs:'ginger_pride_reqs_v1',po:'ginger_pride_po_v1'};
+const PRIDE_FB={items:'pm_pride_items',bills:'pm_pride_bills',issues:'pm_pride_issues',audit:'pm_pride_audit',vendors:'pm_pride_vendors',reqs:'pm_pride_reqs',po:'pm_pride_po'};
 const PRIDE_SEEDFLAG='ginger_pride_seedpushed_v1';
 let PRIDE_TAB='dash', PRIDE_DETAB='items';
 let P_ITEMS=[], P_BILLS=[], P_ISSUES=[], P_AUDIT=[], P_VENDORS=[], P_REQS=[];
@@ -3991,6 +4021,7 @@ function prideSaveLocal(){try{
   localStorage.setItem(PRIDE_LS.audit,JSON.stringify(P_AUDIT.slice(-500)));
   localStorage.setItem(PRIDE_LS.vendors,JSON.stringify(P_VENDORS));
   localStorage.setItem(PRIDE_LS.reqs,JSON.stringify(P_REQS));
+  try{localStorage.setItem(PRIDE_LS.po,JSON.stringify(P_PO));}catch(e){}
 }catch(e){}}
 function prideRecalc(){
   P_STOCK={};PRIDE_LR_CACHE=null;
@@ -4011,7 +4042,7 @@ function prideMergeInto(local,cloud){
 async function pridePullCloud(){
   if(!window._fbReady||!window._fb||!window._fb.loadCol)return;
   try{
-    const r=await Promise.all([window._fb.loadCol(PRIDE_FB.items),window._fb.loadCol(PRIDE_FB.bills),window._fb.loadCol(PRIDE_FB.issues),window._fb.loadCol(PRIDE_FB.audit),window._fb.loadCol(PRIDE_FB.vendors),window._fb.loadCol(PRIDE_FB.reqs)]);
+    const r=await Promise.all([window._fb.loadCol(PRIDE_FB.items),window._fb.loadCol(PRIDE_FB.bills),window._fb.loadCol(PRIDE_FB.issues),window._fb.loadCol(PRIDE_FB.audit),window._fb.loadCol(PRIDE_FB.vendors),window._fb.loadCol(PRIDE_FB.reqs),window._fb.loadCol(PRIDE_FB.po)]);
     let ch=false;
     ch=prideMergeInto(P_ITEMS,r[0])||ch;
     ch=prideMergeInto(P_BILLS,r[1])||ch;
@@ -4019,6 +4050,7 @@ async function pridePullCloud(){
     ch=prideMergeInto(P_AUDIT,r[3])||ch;
     ch=prideMergeInto(P_VENDORS,r[4])||ch;
     ch=prideMergeInto(P_REQS,r[5])||ch;
+    try{ch=prideMergeInto(P_PO,r[6])||ch;}catch(e){}
     if(ch){prideRecalc();prideSaveLocal();prideFillItemDL();if(PRIDE_TAB)prideRender();toast('☁ Pride cloud se sync ho gaya');}
   }catch(e){}
 }
@@ -4045,6 +4077,7 @@ function prideLoadLocal(){
   P_AUDIT=prideLSGet(PRIDE_LS.audit,[]);
   P_VENDORS=prideLSGet(PRIDE_LS.vendors,[]);
   P_REQS=prideLSGet(PRIDE_LS.reqs,[]);
+  try{P_PO=prideLSGet(PRIDE_LS.po,[]);}catch(e){P_PO=[];}
   P_ITEMS=prideLSGet(PRIDE_LS.items,null);
   PRIDE_SEEDED=false;
   if(!P_ITEMS||!P_ITEMS.length){P_ITEMS=JSON.parse(JSON.stringify(PRIDE_SEED));PRIDE_SEEDED=true;}
@@ -4066,7 +4099,7 @@ function prideNextSlipNo(){
 }
 
 /* ---------- tab switching ---------- */
-const PRIDE_TABS=['dash','import','entry','bills','search','vendors','rate','daily','monthly','audit','products','store','bincard','dataeditor','export','reports','req','missue'];
+const PRIDE_TABS=['dash','import','entry','bills','search','vendors','rate','daily','monthly','audit','products','store','bincard','dataeditor','export','reports','req','missue','po'];
 function prideTab(t){
   PRIDE_TAB=t;
   document.querySelectorAll('#tab-pride .pride-sub').forEach(el=>el.classList.add('hide'));
@@ -4091,6 +4124,7 @@ function prideRender(){
   else if(PRIDE_TAB==='reports')prideRepInit();
   else if(PRIDE_TAB==='req')prideReqInit();
   else if(PRIDE_TAB==='missue')prideMIInit();
+  else if(PRIDE_TAB==='po')pridePOInit();
   else if(PRIDE_TAB==='export')prideRenderExport();
 }
 
@@ -6196,6 +6230,195 @@ function prideMIClear(){
   const pi=document.getElementById('pride_mi_prod');pi.value='';pi._it=null;
   ['pride_mi_rate','pride_mi_amt','pride_mi_stock','pride_mi_reqqty','pride_mi_qty'].forEach(id=>document.getElementById(id).value='');
   prideMIInit();prideMIRender();
+}
+
+/* ================= PRIDE PO — Purchase Order (vendor ko bhejne ke liye) ================= */
+const PRIDE_CO={name:'PRIDE HOSPITALITY PRIVATE LIMITED',trade:'Ginger Jaipur, Ajmer Road',
+  addr:'Plot No. 14, Govind Vihar Prime, Bhankrota, Jaipur, Rajasthan — 302026',
+  gstin:'08AADCP5600R5ZX',phone:'+91 93092 11224',email:'finance.jaipur-ajmerroad@gingerhotels.com'};
+const PRIDE_PO_TERMS=[
+  'Rates are inclusive of all taxes unless specified otherwise.',
+  'Delivery to be made at hotel stores within the stipulated date; late delivery may lead to cancellation.',
+  'Goods will be checked at receipt — short / expired / damaged stock will be rejected.',
+  'Invoice must mention the PO number, else payment will be delayed.',
+  'Payment as per agreed credit terms after satisfactory receipt of goods.',
+  'This PO is valid only for the items and quantities mentioned above.'
+];
+let P_PO=[];
+let PRIDE_PO_ROWS=[];
+
+function pridePOLoadLocal(){P_PO=prideLSGet(PRIDE_LS.po,[]);}
+function pridePONext(){
+  let n=0;
+  P_PO.forEach(p=>{const m=/^PPO-(\d+)$/.exec(p.no||'');if(m)n=Math.max(n,+m[1]);});
+  return 'PPO-'+String(n+1).padStart(4,'0');
+}
+function pridePOVendorInfo(name){
+  const v=(P_VENDORS||[]).find(x=>norm(x.name||'')===norm(name||''));
+  return {name:name||'',phone:(v&&(v.phone||v.mobile))||'',gst:(v&&v.gst)||'',address:(v&&v.address)||''};
+}
+
+function pridePOInit(){
+  const non=document.getElementById('pride_po_no');
+  if(non&&!non.value)non.value=pridePONext();
+  const dt=document.getElementById('pride_po_date');
+  if(dt&&!dt.value)dt.value=today();
+  const pay=document.getElementById('pride_po_pay');
+  if(pay&&!pay.value)pay.value='30 days credit';
+  const pi=document.getElementById('pride_po_prod');
+  if(pi&&!pi.dataset.sg){
+    pi.dataset.sg='1';
+    prideSuggFor(pi,document.getElementById('pride_po_sugg'),prideItemList,s=>{
+      pi.value=s.it.name;pi._it=s.it;
+      document.getElementById('pride_po_rate').value=prideLastRate(s.it.id)||s.it.rate||'';
+      pridePOAmt();document.getElementById('pride_po_qty').focus();
+    });
+    ['pride_po_qty','pride_po_rate'].forEach(id=>{const el=document.getElementById(id);if(el)el.addEventListener('input',pridePOAmt);});
+  }
+  pridePORender();pridePOList();
+}
+/* Smart Indent (Phase 6) se prefill hook */
+function pridePOPrefill(vendor,items){
+  prideTab('po');pridePOInit();
+  const v=document.getElementById('pride_po_vendor');if(v)v.value=vendor||'';
+  PRIDE_PO_ROWS=(items||[]).map(l=>{const it=prideItem(l.id)||{};const qty=prideR2(+l.qty||0),rate=prideR2(+l.rate||0);
+    return {id:l.id||it.id||'',name:l.name||it.name||'',unit:l.unit||it.unit||'',qty:qty,rate:rate,amt:prideR2(qty*rate)};})
+    .filter(l=>l.name&&l.qty>0);
+  pridePORender();
+  toast('PO me items bhar diye — check karke Save dabao');
+}
+function pridePOAmt(){
+  const q=numParse(document.getElementById('pride_po_qty').value);
+  const r=numParse(document.getElementById('pride_po_rate').value);
+  document.getElementById('pride_po_amt').value=(q&&r)?prideR2(q*r).toFixed(2):'';
+}
+function pridePOAdd(){
+  if(!prideNeedPM())return;
+  const pi=document.getElementById('pride_po_prod');
+  const it=pi._it||prideItemByName((pi.value||'').trim());
+  if(!it){toast('Product list se chuno',true);return;}
+  const qty=numParse(document.getElementById('pride_po_qty').value);
+  if(qty<=0){toast('Qty likho',true);return;}
+  const rate=numParse(document.getElementById('pride_po_rate').value)||(+it.rate||0);
+  if(PRIDE_PO_ROWS.some(x=>x.id===it.id)){toast('Ye item pehle se joda hai',true);return;}
+  PRIDE_PO_ROWS.push({id:it.id,name:it.name,unit:it.unit,qty:prideR2(qty),rate:prideR2(rate),amt:prideR2(qty*rate)});
+  pi.value='';pi._it=null;
+  ['pride_po_qty','pride_po_rate','pride_po_amt'].forEach(id=>document.getElementById(id).value='');
+  pridePORender();pi.focus();
+}
+function pridePORender(){
+  const tb=document.getElementById('pride_po_rows');if(!tb)return;
+  tb.innerHTML=PRIDE_PO_ROWS.map((l,i)=>'<tr><td style="text-align:center">'+(i+1)+'</td><td><b>'+esc(l.name)+'</b></td><td>'+esc(l.unit||'')+'</td><td style="text-align:center">'+l.qty+'</td><td style="text-align:right">'+l.rate+'</td><td style="text-align:right">'+l.amt.toFixed(2)+'</td><td><button class="prow-del" onclick="pridePODelRow('+i+')" tabindex="-1">✕</button></td></tr>').join('');
+  document.getElementById('pride_po_total').value=prideR2(PRIDE_PO_ROWS.reduce((a,l)=>a+l.amt,0)).toFixed(2);
+}
+function pridePODelRow(i){PRIDE_PO_ROWS.splice(i,1);pridePORender();}
+function pridePOClear(){
+  PRIDE_PO_ROWS=[];pridePORender();
+  ['pride_po_vendor','pride_po_deliv','pride_po_remark','pride_po_prod','pride_po_qty','pride_po_rate','pride_po_amt'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  const pay=document.getElementById('pride_po_pay');if(pay)pay.value='30 days credit';
+  const non=document.getElementById('pride_po_no');if(non)non.value=pridePONext();
+  const dt=document.getElementById('pride_po_date');if(dt)dt.value=today();
+}
+function pridePOSave(){
+  if(!prideNeedPM())return;
+  if(!PRIDE_PO_ROWS.length){toast('Koi item nahi joda',true);return;}
+  const vendor=document.getElementById('pride_po_vendor').value.trim();
+  if(!vendor){toast('Vendor likho',true);return;}
+  const no=(document.getElementById('pride_po_no').value.trim()||pridePONext());
+  if(P_PO.some(p=>p.no===no)){toast('Ye PO No pehle se hai',true);return;}
+  const doc={id:uid(),no:no,date:document.getElementById('pride_po_date').value||today(),
+    vendor:vendor,delivBy:document.getElementById('pride_po_deliv').value||'',
+    payTerms:document.getElementById('pride_po_pay').value.trim()||'30 days credit',
+    remark:document.getElementById('pride_po_remark').value.trim(),
+    items:PRIDE_PO_ROWS.map(l=>({id:l.id,name:l.name,unit:l.unit,qty:l.qty,rate:l.rate,amt:l.amt})),
+    total:prideR2(PRIDE_PO_ROWS.reduce((a,l)=>a+l.amt,0)),u:Date.now()};
+  P_PO.unshift(doc);
+  pridePOVendorEnsure(vendor);
+  prideSaveLocal();prideCloudPut('po',doc);
+  prideAudit('PO banaya',no+' · '+vendor+' · '+doc.items.length+' items · '+inr(doc.total));
+  pridePOClear();pridePOList();
+  toast('✅ PO '+no+' save ho gaya');
+  pridePOShowPrint(doc.id);
+}
+function pridePOVendorEnsure(vendor){
+  if(vendor&&!P_VENDORS.some(x=>norm(x.name||'')===norm(vendor))){
+    const v={id:uid(),name:vendor,phone:'',contact:'',address:'',gst:'',u:Date.now()};
+    P_VENDORS.push(v);prideSaveLocal();prideCloudPut('vendors',v);prideFillVendors();
+  }
+}
+function pridePOList(){
+  const tb=document.getElementById('pride_po_hist');if(!tb)return;
+  if(!P_PO.length){tb.innerHTML='<tr><td colspan="6" style="text-align:center;color:var(--ink3)">Abhi koi PO nahi bana</td></tr>';return;}
+  tb.innerHTML=P_PO.map(p=>'<tr><td><b>'+esc(p.no)+'</b></td><td>'+fmtD(p.date)+'</td><td>'+esc(p.vendor)+'</td><td style="text-align:center">'+(p.items||[]).length+'</td><td style="text-align:right"><b>'+inr(p.total)+'</b></td><td style="white-space:nowrap"><button class="btn btn-sm" onclick="pridePOShowPrint(\''+p.id+'\')">🖨 Print</button> <button class="btn btn-sm" onclick="pridePODel(\''+p.id+'\')">🗑</button></td></tr>').join('');
+}
+function pridePODel(id){
+  if(!prideNeedPM())return;
+  const p=P_PO.find(x=>x.id===id);if(!p)return;
+  if(!confirm('PO delete karein?\n'+p.no+' · '+p.vendor+' · '+inr(p.total)))return;
+  P_PO=P_PO.filter(x=>x.id!==id);
+  prideSaveLocal();prideCloudDel('po',id);
+  prideAudit('PO delete',p.no+' · '+p.vendor+' · '+inr(p.total));
+  pridePOList();toast('🗑 PO hataya');
+}
+function pridePOExcel(){
+  if(!P_PO.length){toast('Koi PO nahi hai',true);return;}
+  const rows=[['PO No','Date','Vendor','Items','Total']];
+  P_PO.forEach(p=>rows.push([p.no,p.date,p.vendor,(p.items||[]).length,p.total]));
+  prideCSV('PO-Register.csv',rows);
+}
+
+/* ---- amount in words (Indian) ---- */
+function prideAmtWords(n){
+  n=Math.round(+n||0);if(n===0)return 'Zero';
+  const a=['','One','Two','Three','Four','Five','Six','Seven','Eight','Nine','Ten','Eleven','Twelve','Thirteen','Fourteen','Fifteen','Sixteen','Seventeen','Eighteen','Nineteen'];
+  const b=['','','Twenty','Thirty','Forty','Fifty','Sixty','Seventy','Eighty','Ninety'];
+  const two=x=>x<20?a[x]:b[Math.floor(x/10)]+(x%10?' '+a[x%10]:'');
+  const three=x=>{const h=Math.floor(x/100),r=x%100;return (h?a[h]+' Hundred'+(r?' ':''):'')+(r?two(r):'');};
+  let s='';
+  const cr=Math.floor(n/1e7);n%=1e7;
+  const lk=Math.floor(n/1e5);n%=1e5;
+  const th=Math.floor(n/1e3);n%=1e3;
+  if(cr)s+=three(cr)+' Crore ';
+  if(lk)s+=two(lk)+' Lakh ';
+  if(th)s+=two(th)+' Thousand ';
+  if(n)s+=three(n);
+  return s.trim().replace(/\s+/g,' ');
+}
+
+/* ---- PO print (approved format) ---- */
+function pridePOPrintHTML(p){
+  const v=pridePOVendorInfo(p.vendor);
+  const th='border:1px solid #000;padding:6px;background:#f0f0f0;font-size:12px';
+  const td='border:1px solid #000;padding:6px;font-size:12.5px';
+  const rows=(p.items||[]).map((l,i)=>'<tr><td style="'+td+';text-align:center">'+(i+1)+'</td><td style="'+td+'">'+esc(l.name)+'</td><td style="'+td+';text-align:center">'+esc(l.unit||'')+'</td><td style="'+td+';text-align:right">'+l.qty+'</td><td style="'+td+';text-align:right">'+(+l.rate).toFixed(2)+'</td><td style="'+td+';text-align:right">'+(+l.amt).toFixed(2)+'</td></tr>').join('');
+  return '<div style="text-align:center;border-bottom:3px double #000;padding-bottom:10px;margin-bottom:12px">'+
+    '<div style="font-size:20px;font-weight:800">'+esc(PRIDE_CO.name)+'</div>'+
+    '<div style="font-size:14px;font-weight:700;margin-top:2px">'+esc(PRIDE_CO.trade)+'</div>'+
+    '<div style="font-size:11.5px;margin-top:4px;line-height:1.5">'+esc(PRIDE_CO.addr)+'<br>GSTIN: '+esc(PRIDE_CO.gstin)+' &nbsp;|&nbsp; Phone: '+esc(PRIDE_CO.phone)+' &nbsp;|&nbsp; Email: '+esc(PRIDE_CO.email)+'</div></div>'+
+    '<div style="text-align:center;font-size:16px;font-weight:800;letter-spacing:3px;margin:10px 0;border:1px solid #000;padding:6px">PURCHASE ORDER</div>'+
+    '<table style="width:100%;border-collapse:collapse;margin-bottom:12px"><tr>'+
+    '<td style="'+td+';width:50%;vertical-align:top"><b style="font-size:11px;letter-spacing:1px">SUPPLIER</b><br><b>'+esc(v.name)+'</b>'+(v.address?'<br>'+esc(v.address):'')+(v.phone?'<br>Phone: '+esc(v.phone):'')+(v.gst?'<br>GSTIN: '+esc(v.gst):'')+'</td>'+
+    '<td style="'+td+';width:50%;vertical-align:top"><b style="font-size:11px;letter-spacing:1px">PO DETAILS</b><br><b>PO No:</b> '+esc(p.no)+'<br><b>Date:</b> '+fmtD(p.date)+(p.delivBy?'<br><b>Delivery by:</b> '+fmtD(p.delivBy):'')+'<br><b>Payment:</b> '+esc(p.payTerms||'')+'</td>'+
+    '</tr></table>'+
+    '<table style="width:100%;border-collapse:collapse;margin-bottom:10px"><thead><tr><th style="'+th+';width:36px">S.No</th><th style="'+th+'">Item Description</th><th style="'+th+';width:56px">Unit</th><th style="'+th+';width:60px">Qty</th><th style="'+th+';width:90px">Rate (Rs.)</th><th style="'+th+';width:110px">Amount (Rs.)</th></tr></thead><tbody>'+rows+'</tbody></table>'+
+    '<table style="width:100%;border-collapse:collapse;margin-bottom:10px"><tr><td style="'+td+'"><b>Amount in words:</b> Rupees '+prideAmtWords(p.total)+' Only</td><td style="'+td+';width:230px;text-align:right"><b>Grand Total: Rs. '+(+p.total).toFixed(2)+'</b></td></tr></table>'+
+    (p.remark?'<div style="'+td+';margin-bottom:10px"><b>Remark:</b> '+esc(p.remark)+'</div>':'')+
+    '<div style="font-size:11px;line-height:1.7;margin-bottom:16px"><b>TERMS &amp; CONDITIONS</b><br>'+PRIDE_PO_TERMS.map((t,i)=>(i+1)+'. '+esc(t)).join('<br>')+'</div>'+
+    '<div style="display:flex;justify-content:space-between;margin-top:30px;font-size:12.5px;text-align:center"><div style="flex:1">Prepared By<br><br><br>....................</div><div style="flex:1">Approved By<br><br><br>....................</div><div style="flex:1">Supplier Sign &amp; Seal<br><br><br>....................</div></div>';
+}
+function pridePOShowPrint(id){
+  const p=P_PO.find(x=>x.id===id);if(!p){toast('PO nahi mila',true);return;}
+  ['slipPrint','reqPrint','stockPrint','tSlipPrint','tStockPrint','vpoPrint'].forEach(pid=>{const el=document.getElementById(pid);if(el)el.innerHTML='';});
+  const card=document.getElementById('pride_po_preview_card');
+  if(card){card.classList.remove('hide');document.getElementById('pride_po_preview').innerHTML=pridePOPrintHTML(p);}
+  const pe=document.getElementById('pridePrint');
+  if(pe)pe.innerHTML=pridePOPrintHTML(p);
+  if(card)card.scrollIntoView({behavior:'smooth',block:'start'});
+}
+function pridePOPrintCur(){
+  const pe=document.getElementById('pridePrint');
+  if(!pe||!pe.innerHTML){toast('Pehle kisi PO ka Print dabao',true);return;}
+  window.print();
 }
 
 </script>
