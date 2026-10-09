@@ -1518,11 +1518,11 @@ tfoot td{font-weight:800;background:#f0f5f3;border-top:2px solid var(--teal);fon
           <div class="card"><div class="card-body"><b>📥 Restore</b><br><span style="font-size:12px;color:var(--ink3)">Backup file se wapas lao (pehle maujooda ka auto-backup download hoga)</span><br><br>
             <button class="btn btn-sm" onclick="document.getElementById('pride_restore_file').click()">⬆ Restore Karo</button>
             <input type="file" id="pride_restore_file" accept=".json,application/json" style="display:none" onchange="prideRestoreFile(event)"></div></div>
-          <div class="card"><div class="card-body"><b>☁ Server Backup (Hostinger)</b><br><span style="font-size:12px;color:var(--ink3)">Backup seedha tumhare server par save hoga — file sambhalne ka jhanjhat nahi</span><br><br>
+          <div class="card"><div class="card-body"><b>☁ Server Backup (Vault)</b><br><span style="font-size:12px;color:var(--ink3)">Pride + <b>poora Purchase MIS</b> + Stationery — sab kuch ek saath tumhare server ke Vault me. Link se khulta hai, Google par nahi aata.</span><br><br>
             <div style="display:flex;flex-direction:column;gap:6px">
-              <input id="pride_srv_url" class="smini" style="width:100%" placeholder="https://hariyalibasket.com/pride-receiver/receiver.php" autocomplete="off">
+              <input id="pride_srv_url" class="smini" style="width:100%" placeholder="https://hariyalibasket.com/pride-vault/receiver.php" autocomplete="off">
               <input id="pride_srv_key" class="smini" type="password" style="width:100%" placeholder="Secret key" autocomplete="off">
-              <div><button class="btn btn-primary btn-sm" onclick="prideServerBackup()">⬆ Server par Bhejo</button></div>
+              <div><button class="btn btn-primary btn-sm" onclick="prideServerBackup()">⬆ Vault me Bhejo</button></div>
               <div id="pride_srv_info" style="font-size:12px;color:var(--ink3)">—</div>
             </div></div></div>
         </div>
@@ -7163,9 +7163,25 @@ function prideFullBackupData(){
   try{data.data._mi_draft=localStorage.getItem(PRIDE_MI_DRAFT_KEY)||'';}catch(e){data.data._mi_draft='';}
   return data;
 }
+/* ---------- VAULT full backup: Pride + POORA Purchase MIS + Stationery ----------
+   Phone ke localStorage me jitni bhi ginger_* keys hain, sab ek saath.
+   (Purana April-Sept MIS read-only data bhi isi me hai — kuch nahi chhootega.) */
+function prideVaultBackupData(){
+  const data={app:'ginger-store-full',v:PRIDE_DATA_VERSION,at:new Date().toISOString(),data:{},keys:[]};
+  try{
+    for(let i=0;i<localStorage.length;i++){
+      const k=localStorage.key(i);
+      if(k&&k.indexOf('ginger_')===0){
+        data.keys.push(k);
+        const raw=localStorage.getItem(k);
+        try{data.data[k]=JSON.parse(raw);}catch(e){data.data[k]=raw;}
+      }
+    }
+  }catch(e){}
+  return data;
+}
 function prideFullBackup(silent){
-  const data=prideFullBackupData();
-  const blob=new Blob([JSON.stringify(data)],{type:'application/json'});
+  const data=prideFullBackupData();  const blob=new Blob([JSON.stringify(data)],{type:'application/json'});
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);
   a.download='Pride_FullBackup_'+today()+'.json';
   document.body.appendChild(a);a.click();a.remove();
@@ -7194,7 +7210,7 @@ function prideServerBackup(){
   try{localStorage.setItem('ginger_pride_server_url_v1',url);localStorage.setItem('ginger_pride_server_key_v1',key);}catch(e){}
   prideServerInfo('Bhej rahe hain… ⏳');
   let body='';
-  try{body='key='+encodeURIComponent(key)+'&data='+encodeURIComponent(JSON.stringify(prideFullBackupData()));}
+  try{body='key='+encodeURIComponent(key)+'&data='+encodeURIComponent(JSON.stringify(prideVaultBackupData()));}
   catch(e){prideServerInfo('❌ Backup taiyaar nahi ho paya');return;}
   fetch(url,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:body})
     .then(r=>r.json().catch(()=>{throw new Error('Server se sahi jawab nahi aaya (HTTP '+r.status+')');}))
