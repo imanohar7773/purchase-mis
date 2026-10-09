@@ -1190,7 +1190,7 @@ tfoot td{font-weight:800;background:#f0f5f3;border-top:2px solid var(--teal);fon
 .prow-del{background:none;border:none;cursor:pointer;font-size:15px;color:#b3261e}
 </style>
 <div id="tab-pride" class="hide">
-  <div class="card"><div class="card-head"><h2>🏭 Pride Hospitality Pvt Ltd</h2>
+  <div class="card"><div class="card-head"><h2>🏭 Pride Hospitality Pvt Ltd</h2><span id="pride_sync_badge" style="margin-left:auto;font-size:12px;font-weight:600"></span>
     <span style="font-size:12px;color:var(--ink3)">Ginger Jaipur, Ajmer Road · Opening 01-Oct-2026 · Group-managed (fresh start)</span></div></div>
 
   <div class="nav" id="prideNav" style="top:0;flex-wrap:wrap">
@@ -1471,10 +1471,12 @@ tfoot td{font-weight:800;background:#f0f5f3;border-top:2px solid var(--teal);fon
           <button onclick="prideDETab('items')" id="npde-items" class="active">📦 Items</button>
           <button onclick="prideDETab('bills')" id="npde-bills">🧾 Bills</button>
           <button onclick="prideDETab('issues')" id="npde-issues">📤 Issues</button>
+          <button onclick="prideDETab('damaged')" id="npde-damaged">⚠️ Damaged</button>
         </div>
         <div id="pride-de-items"></div>
         <div id="pride-de-bills" class="hide"></div>
         <div id="pride-de-issues" class="hide"></div>
+        <div id="pride-de-damaged" class="hide"></div>
       </div></div>
   </div>
 
@@ -1516,6 +1518,13 @@ tfoot td{font-weight:800;background:#f0f5f3;border-top:2px solid var(--teal);fon
           <div class="card"><div class="card-body"><b>📥 Restore</b><br><span style="font-size:12px;color:var(--ink3)">Backup file se wapas lao (pehle maujooda ka auto-backup download hoga)</span><br><br>
             <button class="btn btn-sm" onclick="document.getElementById('pride_restore_file').click()">⬆ Restore Karo</button>
             <input type="file" id="pride_restore_file" accept=".json,application/json" style="display:none" onchange="prideRestoreFile(event)"></div></div>
+          <div class="card"><div class="card-body"><b>☁ Server Backup (Hostinger)</b><br><span style="font-size:12px;color:var(--ink3)">Backup seedha tumhare server par save hoga — file sambhalne ka jhanjhat nahi</span><br><br>
+            <div style="display:flex;flex-direction:column;gap:6px">
+              <input id="pride_srv_url" class="smini" style="width:100%" placeholder="https://hariyalibasket.com/pride-receiver/receiver.php" autocomplete="off">
+              <input id="pride_srv_key" class="smini" type="password" style="width:100%" placeholder="Secret key" autocomplete="off">
+              <div><button class="btn btn-primary btn-sm" onclick="prideServerBackup()">⬆ Server par Bhejo</button></div>
+              <div id="pride_srv_info" style="font-size:12px;color:var(--ink3)">—</div>
+            </div></div></div>
         </div>
       </div></div>
   </div>
@@ -4065,15 +4074,18 @@ function prideNeedPM(){if(!prideCanEdit()){toast('Sirf PM edit kar sakta hai',tr
 
 /* ---------- storage (local + cloud) ---------- */
 function prideLSGet(k,fb){try{const v=localStorage.getItem(k);if(v!=null)return JSON.parse(v);}catch(e){}return fb;}
-function prideSaveLocal(){try{
-  localStorage.setItem(PRIDE_LS.items,JSON.stringify(P_ITEMS));
-  localStorage.setItem(PRIDE_LS.bills,JSON.stringify(P_BILLS));
-  localStorage.setItem(PRIDE_LS.issues,JSON.stringify(P_ISSUES));
-  localStorage.setItem(PRIDE_LS.audit,JSON.stringify(P_AUDIT.slice(-500)));
-  localStorage.setItem(PRIDE_LS.vendors,JSON.stringify(P_VENDORS));
-  localStorage.setItem(PRIDE_LS.reqs,JSON.stringify(P_REQS));
-  try{localStorage.setItem(PRIDE_LS.po,JSON.stringify(P_PO));}catch(e){}
-}catch(e){}}
+function prideSaveLocal(){
+  const fails=[];
+  const put=(label,key,val)=>{try{localStorage.setItem(key,val);}catch(e){fails.push(label);}};
+  put('Items',PRIDE_LS.items,JSON.stringify(P_ITEMS));
+  put('Bills',PRIDE_LS.bills,JSON.stringify(P_BILLS));
+  put('Issues',PRIDE_LS.issues,JSON.stringify(P_ISSUES));
+  put('Audit',PRIDE_LS.audit,JSON.stringify(P_AUDIT.slice(-500)));
+  put('Vendors',PRIDE_LS.vendors,JSON.stringify(P_VENDORS));
+  put('Reqs',PRIDE_LS.reqs,JSON.stringify(P_REQS));
+  try{put('PO',PRIDE_LS.po,JSON.stringify(P_PO));}catch(e){fails.push('PO');}
+  if(fails.length)toast('⚠️ Phone storage FULL — ye data SAVE NAHI HUA: '+fails.join(', ')+'\nTurant backup lo!',true);
+}
 function prideRecalc(){
   P_STOCK={};PRIDE_LR_CACHE=null;
   P_ITEMS.forEach(it=>{P_STOCK[it.id]=prideR2(+it.openQty||0);});
@@ -4093,7 +4105,7 @@ function prideMergeInto(local,cloud){
 async function pridePullCloud(){
   if(!window._fbReady||!window._fb||!window._fb.loadCol)return;
   try{
-    const r=await Promise.all([window._fb.loadCol(PRIDE_FB.items),window._fb.loadCol(PRIDE_FB.bills),window._fb.loadCol(PRIDE_FB.issues),window._fb.loadCol(PRIDE_FB.audit),window._fb.loadCol(PRIDE_FB.vendors),window._fb.loadCol(PRIDE_FB.reqs),window._fb.loadCol(PRIDE_FB.po)]);
+    const r=await Promise.all([window._fb.loadCol(PRIDE_FB.items),window._fb.loadCol(PRIDE_FB.bills),window._fb.loadCol(PRIDE_FB.issues),window._fb.loadCol(PRIDE_FB.audit),window._fb.loadCol(PRIDE_FB.vendors),window._fb.loadCol(PRIDE_FB.reqs),window._fb.loadCol(PRIDE_FB.po),window._fb.loadCol(PRIDE_FB_TOMB)]);
     let ch=false;
     ch=prideMergeInto(P_ITEMS,r[0])||ch;
     ch=prideMergeInto(P_BILLS,r[1])||ch;
@@ -4102,6 +4114,9 @@ async function pridePullCloud(){
     ch=prideMergeInto(P_VENDORS,r[4])||ch;
     ch=prideMergeInto(P_REQS,r[5])||ch;
     try{ch=prideMergeInto(P_PO,r[6])||ch;}catch(e){}
+    try{if(r[7]&&r[7].length){const tk={};r[7].forEach(t=>{if(t&&t.id)tk[t.kind+':'+t.id]=t.u||0;});
+      const kill=(arr,kind)=>{for(let i=arr.length-1;i>=0;i--){const d=arr[i];if(d&&d.id&&tk[kind+':'+d.id]!==undefined&&tk[kind+':'+d.id]>=((d.u||0)-1000)){arr.splice(i,1);ch=true;}};};
+      kill(P_ITEMS,'items');kill(P_BILLS,'bills');kill(P_ISSUES,'issues');kill(P_VENDORS,'vendors');kill(P_REQS,'reqs');try{kill(P_PO,'po');}catch(e){}}}catch(e){}
     if(ch){prideRecalc();prideSaveLocal();prideFillItemDL();if(PRIDE_TAB)prideRender();toast('☁ Pride cloud se sync ho gaya');}
   }catch(e){}
 }
@@ -4114,11 +4129,15 @@ function pridePushSeed(){
 function prideAudit(action,detail){
   const e={id:uid(),ts:new Date().toISOString(),action:String(action||''),detail:String(detail||''),u:Date.now()};
   P_AUDIT.push(e);if(P_AUDIT.length>1000)P_AUDIT=P_AUDIT.slice(-1000);
-  prideSaveLocal();prideCloudPut('audit',e);
+  prideSaveLocal();prideOutboxPush({kind:'audit',doc:e});prideOutboxFlush();
 }
 function prideSaveAll(ops){
   prideRecalc();prideSaveLocal();
-  (ops||[]).forEach(op=>{if(op.del)prideCloudDel(op.kind,op.del);else if(op.doc)prideCloudPut(op.kind,op.doc);});
+  (ops||[]).forEach(op=>{
+    if(op.del){prideTombAdd(op.kind,op.del);}
+    else if(op.doc){prideOutboxPush({kind:op.kind,doc:op.doc});}
+  });
+  prideOutboxFlush();
   prideFillItemDL();prideFillVendors();
 }
 let PRIDE_SEEDED=false;
@@ -4213,7 +4232,7 @@ function prideEnsureVendor(name,details){
   if(!v){
     v=Object.assign({id:uid(),name:name,phone:'',contact:'',address:'',gst:'',u:Date.now()},details||{});
     P_VENDORS.push(v);
-    prideSaveLocal();prideCloudPut('vendors',v);
+    prideSaveLocal();prideOutboxPush({kind:'vendors',doc:v});prideOutboxFlush();
   }
   return v;
 }
@@ -4792,7 +4811,7 @@ function prideEntNewForm(head,raws,newOnes){
   box.innerHTML='<div class="card-head"><h3>🆕 Naye items — detail do</h3></div><div class="card-body">'+
     newOnes.map((r,i)=>'<div class="srow" data-ni="'+i+'" style="align-items:center;gap:6px;flex-wrap:wrap"><b style="min-width:140px;flex:1">'+esc(r.name)+'</b>'+
       '<input class="smini ni_unit" placeholder="Unit" value="'+esc(r.unit||'PCS')+'" style="width:80px">'+
-      '<select class="smini ni_cat" style="width:140px">'+PRIDE_CATS.map(c=>'<option'+(c==='FOOD'?' selected':'')+'>'+c+'</option>').join('')+'</select>'+
+      '<select class="smini ni_cat" style="width:140px">'+PRIDE_CATS.map(c=>'<option'+(c==='FOOD & BEVERAGE SUPPLIES (FNB)'?' selected':'')+'>'+c+'</option>').join('')+'</select>'+
       '<input class="smini ni_tax" type="number" placeholder="Tax %" value="'+(r.taxPct||0)+'" style="width:80px">'+
       '<input class="smini ni_mrp" type="number" placeholder="MRP" value="'+(r.mrp||'')+'" style="width:90px"></div>').join('')+
     '<div style="margin-top:8px;display:flex;gap:8px"><button class="btn btn-primary btn-sm" id="pride_ent_newgo">✅ Jodo + GRN Save</button>'+
@@ -4814,7 +4833,8 @@ function prideEntNewForm(head,raws,newOnes){
   };
   box.scrollIntoView({behavior:'smooth',block:'center'});
 }
-function prideEntCommit(head,raws){
+async function prideEntCommit(head,raws){
+  head.grnNo=await prideClaimNo('grn');
   const billId=uid();
   const items=raws.map(r=>{const it=prideItemByName(r.name);return Object.assign({id:it.id},r);});
   const t=prideEntTotal();
@@ -4832,9 +4852,9 @@ function prideEntCommit(head,raws){
     const diItems=items.map((l,ix)=>{const q=prideR2((+l.qty||0)+(+l.fqty||0));
       return {id:l.id,name:l.name,unit:l.unit,qty:q,rate:l.rate,amt:prideR2(q*l.rate),lotKey:billId+'#'+ix,lotLabel:fmtD(head.dt)+' · '+(head.grnNo||'')};}).filter(l=>l.qty>0);
     if(diItems.length){
-      const ino=prideNextSlipNo();
+      const ino=await prideClaimNo('isl');
       const diTotal=prideR2(diItems.reduce((a,l)=>a+l.amt,0));
-      const diDoc={id:uid(),no:ino,date:head.dt,dept:diDept,reqNo:'',remark:'Direct issue · '+(head.grnNo||'')+' (auto)',items:diItems,total:diTotal,u:Date.now()};
+      const diDoc={id:uid(),no:ino,date:head.dt,dept:diDept,reqNo:'',billId:billId,remark:'Direct issue · '+(head.grnNo||'')+' (auto)',items:diItems,total:diTotal,u:Date.now()};
       P_ISSUES.push(diDoc);ops.push({kind:'issues',doc:diDoc});
       prideAudit('Direct issue (GRN)',ino+' · '+diDept+' · GRN '+(head.grnNo||'')+' · '+diItems.length+' items · '+inr(diTotal));
       diMsg=' + direct issue '+ino+' ('+diDept+')';
@@ -4998,9 +5018,13 @@ function prideBillDel(id){
   const b=P_BILLS.find(x=>x.id===id);if(!b)return;
   const lkBDel=prideLockBlocked(b.date);if(lkBDel){toast(lkBDel,true);return;}
   if(!confirm('Bill delete karein?\n'+b.billNo+' · '+b.vendor+'\nStock apne aap wapas adjust ho jayega.'))return;
+  const linked=P_ISSUES.filter(s=>s.billId===id||((s.remark||'').indexOf('Direct issue · '+(b.grnNo||'#'))===0&&(s.remark||'').indexOf('(auto)')>0));
+  const ops=[{kind:'bills',del:id}];
+  linked.forEach(s=>ops.push({kind:'issues',del:s.id}));
   P_BILLS=P_BILLS.filter(x=>x.id!==id);
-  prideSaveAll([{kind:'bills',del:id}]);
-  prideAudit('Bill delete',b.billNo+' · '+b.vendor+' · '+inr(b.total));
+  if(linked.length)P_ISSUES=P_ISSUES.filter(x=>!linked.some(l=>l.id===x.id));
+  prideSaveAll(ops);
+  prideAudit('Bill delete',b.billNo+' · '+b.vendor+' · '+inr(b.total)+(linked.length?' · '+linked.length+' auto direct-issue bhi hata':'') );
   document.getElementById('pride_bill_detail').innerHTML='';
   prideRenderBills();toast('🗑 Bill hataya · stock adjust');
 }
@@ -5014,28 +5038,39 @@ function prideRenderSearch(){
     (rows.map(i=>'<tr><td><input type="checkbox" class="pride_ck" data-id="'+i.id+'" style="width:18px;height:18px"></td><td><b>'+esc(i.name)+'</b></td><td>'+i.cat+'</td><td>'+esc(i.unit)+'</td><td style="text-align:right">'+i.rate+'</td><td style="text-align:center"><b>'+(P_STOCK[i.id]||0)+'</b></td><td><input class="smini pride_iq" data-id="'+i.id+'" type="number" min="0" step="any" placeholder="Qty" style="width:76px"></td></tr>').join('')||'<tr><td colspan="7" style="color:var(--ink3)">Kuch nahi mila</td></tr>');
   document.getElementById('pride_issue_msg').textContent=rows.length+' items · tick karke qty likho, dept chuno, Issue dabao';
 }
-function prideIssueBulk(){
+async function prideIssueBulk(){
   if(!prideNeedPM())return;
   const dept=document.getElementById('pride_issue_dept').value;
   const dt=document.getElementById('pride_issue_date').value||today();
+  const lkBI=prideLockBlocked(dt);if(lkBI){toast(lkBI,true);return;}
   const remark=document.getElementById('pride_issue_remark').value.trim();
   const lines=[];
+  const picks=[];
   document.querySelectorAll('#pride_search_table .pride_ck:checked').forEach(ck=>{
     const id=ck.dataset.id,it=prideItem(id);if(!it)return;
     const qEl=document.querySelector('.pride_iq[data-id="'+id+'"]');
     const qty=numParse(qEl&&qEl.value);
-    if(qty>0){const lr=prideLastRate(id)||prideOldRate(it.name)||+it.rate||0;lines.push({id:id,name:it.name,qty:prideR2(qty),rate:lr,amt:prideR2(qty*lr)});}
+    if(qty>0)picks.push({id:id,it:it,qty:qty});
   });
-  if(!lines.length){toast('Koi item tick karke qty nahi likhi',true);return;}
-  const short=lines.filter(l=>l.qty>(P_STOCK[l.id]||0)+0.0001);
-  if(short.length&&!confirm('Stock kam hai: '+short.map(s=>s.name+' (stock '+(P_STOCK[s.id]||0)+')').join(', ')+'\nPhir bhi issue karein?'))return;
-  const doc={id:uid(),no:prideNextSlipNo(),date:dt,dept:dept,items:lines,total:prideR2(lines.reduce((a,l)=>a+l.amt,0)),remark:remark,u:Date.now()};
+  if(!picks.length){toast('Koi item tick karke qty nahi likhi',true);return;}
+  const short=picks.filter(p=>p.qty>(P_STOCK[p.id]||0)+0.0001);
+  if(short.length&&!confirm('Stock kam hai: '+short.map(s=>s.it.name+' (stock '+(P_STOCK[s.id]||0)+')').join(', ')+'\nPhir bhi issue karein?'))return;
+  /* FIFO auto-split: har item ki qty sabse purane lots me baanto */
+  picks.forEach(p=>{
+    const lr=prideLastRate(p.id)||prideOldRate(p.it.name)||+p.it.rate||0;
+    const splits=prideFifoSplit(p.id,p.qty,{extra:lines});
+    splits.forEach(sp=>{
+      lines.push({id:p.id,name:p.it.name,unit:p.it.unit,qty:sp.qty,rate:lr,amt:prideR2(sp.qty*lr),lotKey:sp.lotKey,lotLabel:sp.lotLabel});
+    });
+  });
+  const no=await prideClaimNo('isl');
+  const doc={id:uid(),no:no,date:dt,dept:dept,items:lines,total:prideR2(lines.reduce((a,l)=>a+l.amt,0)),remark:remark,u:Date.now()};
   P_ISSUES.push(doc);
   prideSaveAll([{kind:'issues',doc:doc}]);
-  prideAudit('Dept issue',dept+' · '+fmtD(dt)+' · '+lines.length+' items · '+inr(doc.total)+(remark?' · '+remark:''));
+  prideAudit('Dept issue',dept+' · '+fmtD(dt)+' · '+lines.length+' lines · '+inr(doc.total)+(remark?' · '+remark:''));
   document.getElementById('pride_issue_remark').value='';
   prideRenderSearch();
-  toast('✅ '+lines.length+' items → '+dept);
+  toast('✅ '+picks.length+' items → '+dept+' ('+no+')');
 }
 
 /* ---------- 6. VENDORS (directory + purchase summary) ---------- */
@@ -5070,10 +5105,15 @@ function prideVendorEdit(id){
   const address=prompt('Address:',v.address||'');if(address==null)return;
   const gst=prompt('GSTIN:',v.gst||'');if(gst==null)return;
   if(name.trim()&&P_VENDORS.some(x=>x.id!==id&&norm(x.name)===norm(name))){toast('Ye naam pehle se hai',true);return;}
+  const oldVN=v.name;
   v.name=name.trim()||v.name;v.phone=phone.trim();v.contact=contact.trim();v.address=address.trim();v.gst=gst.trim().toUpperCase();v.u=Date.now();
-  prideSaveAll([{kind:'vendors',doc:v}]);
-  prideAudit('Vendor edit',v.name);
-  prideRenderVendors();toast('✅ Vendor update');
+  const ops=[{kind:'vendors',doc:v}];
+  let nB=0,nP=0;
+  P_BILLS.forEach(b=>{if(b.vendor===oldVN){b.vendor=v.name;b.vendorId=v.id;b.u=Date.now();nB++;ops.push({kind:'bills',doc:b});}});
+  try{P_PO.forEach(p=>{if(p.vendor===oldVN){p.vendor=v.name;p.u=Date.now();nP++;ops.push({kind:'po',doc:p});}});}catch(e){}
+  prideSaveAll(ops);
+  prideAudit('Vendor edit',v.name+' · '+nB+' bills + '+nP+' PO update');
+  prideRenderVendors();toast('✅ Vendor update · '+nB+' bills jude');
 }
 function prideVendorDel(id){
   if(!prideNeedPM())return;
@@ -5205,8 +5245,9 @@ function prideProdAdd(){
   if(prideItemByName(name)){toast('Ye item pehle se hai',true);return;}
   const rate=numParse(prompt('Rate (Rs.):','0'));
   const unit=(prompt('Unit (PCS/KG/LTR...):','PCS')||'PCS').trim().toUpperCase();
-  const cat=prompt('Category (STATIONERY/HOUSEKEEPING/FOOD/BEVERAGE):','FOOD')||'FOOD';
-  const it={id:uid(),name:name.trim(),cat:PRIDE_CATS.includes(cat.toUpperCase())?cat.toUpperCase():'FOOD',unit:unit,rate:prideR2(rate),taxPct:0,openQty:0,u:Date.now()};
+  const catPick=prompt('Category number likho:\n'+PRIDE_CATS.map((c,i)=>(i+1)+'. '+c).join('\n'),'7')||'7';
+  const cat=PRIDE_CATS[(+catPick||7)-1]||'FOOD & BEVERAGE SUPPLIES (FNB)';
+  const it={id:uid(),name:name.trim(),cat:cat,unit:unit,rate:prideR2(rate),taxPct:0,openQty:0,u:Date.now()};
   P_ITEMS.push(it);prideSaveAll([{kind:'items',doc:it}]);
   prideAudit('Naya item',it.name+' · '+it.cat+' · '+it.unit+' · '+inr(it.rate));
   prideRenderProducts();toast('✅ Item jud gaya');
@@ -5337,7 +5378,7 @@ function prideIssueDel(sid){
 /* ---------- 13. DATA EDITOR — sab kuch modify ---------- */
 function prideDETab(t){
   PRIDE_DETAB=t;
-  ['items','bills','issues'].forEach(k=>{
+  ['items','bills','issues','damaged'].forEach(k=>{
     document.getElementById('pride-de-'+k).classList.toggle('hide',k!==t);
     const b=document.getElementById('npde-'+k);if(b)b.classList.toggle('active',k===t);
   });
@@ -5345,11 +5386,12 @@ function prideDETab(t){
 }
 function prideRenderDE(){
   if(!prideCanEdit()){
-    ['pride-de-items','pride-de-bills','pride-de-issues'].forEach(id=>{document.getElementById(id).innerHTML='<div style="color:var(--ink3);font-size:13px">Sirf PM edit kar sakta hai.</div>';});
+    ['pride-de-items','pride-de-bills','pride-de-issues','pride-de-damaged'].forEach(id=>{const el=document.getElementById(id);if(el)el.innerHTML='<div style="color:var(--ink3);font-size:13px">Sirf PM edit kar sakta hai.</div>';});
     return;
   }
   if(PRIDE_DETAB==='items')prideDEItems();
   else if(PRIDE_DETAB==='bills')prideDEBills();
+  else if(PRIDE_DETAB==='damaged')prideRenderDamaged();
   else prideDEIssues();
 }
 /* --- items --- */
@@ -5361,8 +5403,9 @@ function prideDEItems(){
 function prideDEItemEdit(id){
   const it=prideItem(id);if(!it)return;
   const tr=document.querySelector('[data-derow="'+id+'"]');if(!tr)return;
+  const _cats=PRIDE_CATS.includes(it.cat)?PRIDE_CATS:[it.cat].concat(PRIDE_CATS);
   tr.innerHTML='<td><input class="smini dei_name" value="'+esc(it.name)+'" style="width:100%;min-width:160px"></td>'+
-    '<td><select class="smini dei_cat">'+PRIDE_CATS.map(c=>'<option'+(c===it.cat?' selected':'')+'>'+c+'</option>').join('')+'</select></td>'+
+    '<td><select class="smini dei_cat">'+_cats.map(c=>'<option'+(c===it.cat?' selected':'')+'>'+esc(c)+'</option>').join('')+'</select></td>'+
     '<td><input class="smini dei_unit" value="'+esc(it.unit)+'" style="width:70px"></td>'+
     '<td><input class="smini dei_rate" type="number" step="any" value="'+it.rate+'" style="width:90px"></td>'+
     '<td><input class="smini dei_tax" type="number" step="any" value="'+(it.taxPct||0)+'" style="width:60px"></td>'+
@@ -5462,12 +5505,29 @@ function prideDEBillSave(id){
     let iid=rw.dataset.iid||'',nm=rw.querySelector('b').textContent;
     if(!iid){const it=prideItemByName(nm);if(!it)return;iid=it.id;}
     const it=prideItem(iid);
-    lines.push({id:iid,name:it?it.name:nm,qty:prideR2(qty),rate:prideR2(rate),amt:prideR2(qty*rate)});
+    const oldL=(b.items||[]).find(l=>l.id===iid);
+    if(oldL){
+      /* MERGE: purani line ki saari fields rakho (fqty, tax, discount, expiry, lot...) — sirf qty/rate badlo */
+      const m=Object.assign({},oldL);
+      const dp=+oldL.discPct||0,tp=+oldL.taxPct||0;
+      const amt=prideR2(qty*rate),disc=prideR2(amt*dp/100),tax=prideR2((amt-disc)*tp/100);
+      m.qty=prideR2(qty);m.rate=prideR2(rate);m.amt=amt;
+      m.discAmt=disc;m.taxAmt=tax;m.lineTotal=prideR2(amt-disc+tax);
+      m.name=it?it.name:(m.name||nm);
+      lines.push(m);
+    }else{
+      const tp=it?+it.taxPct||0:0;
+      const amt=prideR2(qty*rate),tax=prideR2(amt*tp/100);
+      lines.push({id:iid,name:it?it.name:nm,unit:it?it.unit:'PCS',qty:prideR2(qty),fqty:0,rate:prideR2(rate),mrp:0,discPct:0,discAmt:0,taxPct:tp,taxAmt:tax,amt:amt,lineTotal:prideR2(amt+tax),expiry:''});
+    }
   });
   if(!lines.length){toast('Kam se kam ek line rakho',true);return;}
   const old=b.billNo+' · '+inr(b.total);
+  const sub=prideR2(lines.reduce((a,l)=>a+(+l.lineTotal||+l.amt||0),0));
+  const raw=sub+(+b.cartage||0)+(+b.transport||0)-(+b.billDisc||0);
+  const ro=prideR2(Math.round(raw)-raw);
   b.billNo=no;b.date=dt||b.date;b.vendor=vn;b.remark=box.querySelector('.deb_rm').value.trim();
-  b.items=lines;b.total=prideR2(lines.reduce((a,l)=>a+l.amt,0));b.u=Date.now();
+  b.items=lines;b.subTotal=sub;b.roundOff=ro;b.total=prideR2(raw+ro);b.u=Date.now();
   prideSaveAll([{kind:'bills',doc:b}]);
   prideAudit('Bill edit (Data Editor)',no+' · pehle['+old+'] · ab '+inr(b.total));
   prideRenderDE();toast('✅ Bill update · stock recalc');
@@ -5520,7 +5580,16 @@ function prideDEIssueSave(id){
     if(!(qty>0))return;
     const iid=rw.dataset.iid||'',it=prideItem(iid);
     if(!it)return;
-    lines.push({id:iid,name:it.name,qty:prideR2(qty),rate:+it.rate||0,amt:prideR2(qty*(+it.rate||0))});
+    const oldL=(s.items||[]).find(l=>l.id===iid);
+    if(oldL){
+      /* MERGE: purani rate + lot info rakho — sirf qty badlo */
+      const m=Object.assign({},oldL);
+      m.qty=prideR2(qty);m.amt=prideR2(qty*(+oldL.rate||0));m.name=it.name;
+      lines.push(m);
+    }else{
+      const r=+it.rate||0;
+      lines.push({id:iid,name:it.name,unit:it.unit,qty:prideR2(qty),rate:prideR2(r),amt:prideR2(qty*r),lotKey:'',lotLabel:''});
+    }
   });
   if(!lines.length){toast('Kam se kam ek line rakho',true);return;}
   const old=fmtD(s.date)+' · '+s.dept+' · '+inr(s.total);
@@ -5528,7 +5597,7 @@ function prideDEIssueSave(id){
   const lkDEI=prideLockBlocked(s.date)||prideLockBlocked(newIDt);if(lkDEI){toast(lkDEI,true);return;}
   s.date=newIDt;s.dept=box.querySelector('.des_dp').value;
   s.remark=box.querySelector('.des_rm').value.trim();
-  s.items=lines;s.total=prideR2(lines.reduce((a,l)=>a+l.amt,0));s.u=Date.now();
+  s.items=lines;s.total=prideR2(lines.reduce((a,l)=>a+(+l.amt||0),0));s.u=Date.now();
   prideSaveAll([{kind:'issues',doc:s}]);
   prideAudit('Issue edit (Data Editor)',s.dept+' · pehle['+old+'] · ab '+inr(s.total));
   prideRenderDE();toast('✅ Issue update · stock recalc');
@@ -5704,97 +5773,27 @@ function prideImpFileCh(ev){
   r.readAsText(f,'UTF-8');
 }
 
-/* ---------- backup / restore ---------- */
-function prideBackup(silent){
-  if(!prideCanEdit()&&!silent){toast('Sirf PM backup le sakta hai',true);return;}
-  const data={app:'pride-hospitality',version:1,exportedAt:new Date().toISOString(),
-    counts:{items:P_ITEMS.length,bills:P_BILLS.length,issues:P_ISSUES.length,vendors:P_VENDORS.length},
-    items:P_ITEMS,bills:P_BILLS,issues:P_ISSUES,audit:P_AUDIT.slice(-500),vendors:P_VENDORS};
-  const blob=new Blob([JSON.stringify(data)],{type:'application/json'});
-  const a=document.createElement('a');a.href=URL.createObjectURL(blob);
-  a.download='Pride_Backup_'+today()+'.json';
-  document.body.appendChild(a);a.click();
-  setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},500);
-  if(!silent)toast('💾 Backup download ho gaya');
-}
-function prideValidateBackup(data){
-  return !!(data&&Array.isArray(data.items)&&Array.isArray(data.bills)&&Array.isArray(data.issues));
-}
-function prideRestoreFile(ev){
-  if(!prideNeedPM())return;
-  const f=ev.target.files&&ev.target.files[0];ev.target.value='';
-  if(!f)return;
-  const r=new FileReader();
-  r.onload=()=>{
-    let data;try{data=JSON.parse(r.result);}catch(e){toast('File samajh nahi aayi',true);return;}
-    if(!prideValidateBackup(data)){toast('Ye Pride backup file nahi lagti',true);return;}
-    if(!confirm('Restore karein?\n\nBackup me: '+data.items.length+' items, '+data.bills.length+' bills, '+data.issues.length+' issues\nAbhi app me: '+P_ITEMS.length+' items, '+P_BILLS.length+' bills, '+P_ISSUES.length+' issues\n\nSafety ke liye pehle maujooda data ka backup download hoga.'))return;
-    prideBackup(true);
-    prideRestoreDo(data);
-  };
-  r.readAsText(f,'UTF-8');
-}
-async function prideRestoreDo(data){
-  P_ITEMS=data.items;P_BILLS=data.bills;P_ISSUES=data.issues;
-  P_AUDIT=Array.isArray(data.audit)?data.audit:[];
-  P_VENDORS=Array.isArray(data.vendors)?data.vendors:[];
-  prideBackfillSlipNos();
-  prideRecalc();prideSaveLocal();prideFillItemDL();prideFillVendors();
-  try{
-    if(window._fbReady&&window._fb&&window._fb.saveToCol&&window._fb.loadCol){
-      const cols=[['items',P_ITEMS],['bills',P_BILLS],['issues',P_ISSUES],['vendors',P_VENDORS]];
-      for(let ci=0;ci<cols.length;ci++){
-        const kind=cols[ci][0],arr=cols[ci][1];
-        const cloud=await window._fb.loadCol(PRIDE_FB[kind]);
-        const keep={};arr.forEach(d=>{if(d&&d.id)keep[d.id]=1;});
-        if(cloud)for(let i=0;i<cloud.length;i++){const d=cloud[i];if(d&&d.id&&!keep[d.id]){try{await window._fb.deleteFromCol(PRIDE_FB[kind],d.id);}catch(e){}}}
-        for(let i=0;i<arr.length;i++){try{window._fb.saveToCol(PRIDE_FB[kind],arr[i].id,arr[i]);}catch(e){}}
-      }
-    }
-  }catch(e){}
-  prideAudit('Restore',data.items.length+' items · '+data.bills.length+' bills · '+data.issues.length+' issues wapas aaye');
-  if(PRIDE_TAB)prideRender();
-  toast('✅ Restore ho gaya');
-}
-
 /* ================= PHASE 1 — BACKUP / RESTORE ================= */
-const PRIDE_BACKUP_KEYS=['items','bills','issues','audit','vendors','reqs'];
+const PRIDE_BACKUP_KEYS=['items','bills','issues','audit','vendors','reqs','po'];
 const PRIDE_LASTBACKUP_KEY='ginger_pride_lastbackup_v1';
 function prideBackupData(){
   const data={app:'pride-hospitality',v:1,at:new Date().toISOString(),data:{}};
   PRIDE_BACKUP_KEYS.forEach(k=>{try{data.data[k]=JSON.parse(localStorage.getItem(PRIDE_LS[k])||'[]');}catch(e){data.data[k]=[];}});
   return data;
 }
-function prideBackup(){
-  const data=prideBackupData();
-  const blob=new Blob([JSON.stringify(data)],{type:'application/json'});
-  const a=document.createElement('a');
-  a.href=URL.createObjectURL(blob);
-  a.download='pride-backup-'+today()+'.json';
-  document.body.appendChild(a);a.click();a.remove();
-  setTimeout(()=>URL.revokeObjectURL(a.href),5000);
+function prideBackup(silent){
+  /* bug 3 fix: hamesha FULL backup (PO + lock + drafts sahit) */
+  prideFullBackup(!!silent);
   try{localStorage.setItem(PRIDE_LASTBACKUP_KEY,String(Date.now()));}catch(e){}
   prideBackupInfo();
-  toast('✅ Backup download ho gaya');
 }
-function prideRestoreFile(input){
-  const f=input.files&&input.files[0];input.value='';
-  if(!f)return;
-  const rd=new FileReader();
-  rd.onload=()=>{
-    let data=null;
-    try{data=JSON.parse(rd.result);}catch(e){data=null;}
-    if(!data||!data.data||typeof data.data!=='object'){toast('Ye backup file sahi nahi hai',true);return;}
-    const counts=PRIDE_BACKUP_KEYS.map(k=>k+': '+((data.data[k]||[]).length+' records')).join('\n');
-    if(!confirm('⚠️ RESTORE — Pride ka saara maujooda data OVERWRITE ho jayega.\n\nBackup ('+(data.at||'date nahi')+') me:\n'+counts+'\n\nPakka restore karna hai?'))return;
-    try{
-      PRIDE_BACKUP_KEYS.forEach(k=>localStorage.setItem(PRIDE_LS[k],JSON.stringify(data.data[k]||[])));
-    }catch(e){toast('Restore me storage error',true);return;}
-    toast('✅ Restore ho gaya — page reload ho raha hai');
-    setTimeout(()=>location.reload(),800);
-  };
-  rd.onerror=()=>toast('File padhne me error',true);
-  rd.readAsText(f);
+function prideBackupInfo(){
+  const el=document.getElementById('pride_backup_info');if(!el)return;
+  const s=prideStorageInfo();
+  const age=prideLastBackupAge();
+  const ageTxt=age===null?'kabhi nahi':age<1?'1 ghante se kam pehle':age+' ghante pehle';
+  el.innerHTML='💾 Storage istemal: <b>'+s.mb+' MB</b> ('+s.pct+'% of ~5 MB)'+(s.pct>=80?' <b style="color:#c0392b">⚠️ 80% se upar — backup lekar purana audit saaf karo</b>':'')+
+    '<br>🕒 Aakhri backup: <b>'+ageTxt+'</b>'+(age!==null&&age>24?' <b style="color:#c0392b">⚠️ 1 din se purana</b>':'');
 }
 function prideStorageInfo(){
   let total=0;
@@ -5810,14 +5809,47 @@ function prideLastBackupAge(){
   if(!t)return null;
   return Math.round((Date.now()-t)/3600000);
 }
-function prideBackupInfo(){
-  const el=document.getElementById('pride_backup_info');if(!el)return;
-  const s=prideStorageInfo();
-  const age=prideLastBackupAge();
-  const ageTxt=age===null?'kabhi nahi':age<1?'1 ghante se kam pehle':age+' ghante pehle';
-  el.innerHTML='💾 Storage istemal: <b>'+s.mb+' MB</b> ('+s.pct+'% of ~5 MB)'+(s.pct>=80?' <b style="color:#c0392b">⚠️ 80% se upar — backup lekar purana audit saaf karo</b>':'')+
-    '<br>🕒 Aakhri backup: <b>'+ageTxt+'</b>'+(age!==null&&age>24?' <b style="color:#c0392b">⚠️ 1 din se purana</b>':'');
+function prideValidateBackup(data){
+  return !!(data&&Array.isArray(data.items)&&Array.isArray(data.bills)&&Array.isArray(data.issues));
 }
+function prideRestoreFile(evOrInput){
+  const input=(evOrInput&&evOrInput.target&&evOrInput.target.files)?evOrInput.target:evOrInput;
+  const f=input.files&&input.files[0];try{input.value='';}catch(e){}
+  if(!f)return;
+  const rd=new FileReader();
+  rd.onload=()=>{
+    let data=null;
+    try{data=JSON.parse(rd.result);}catch(e){data=null;}
+    if(!data||!data.data||typeof data.data!=='object'){toast('Ye backup file sahi nahi hai',true);return;}
+    const counts=PRIDE_BACKUP_KEYS.map(k=>k+': '+((data.data[k]||[]).length+' records')).join('\n');
+    if(!confirm('⚠️ RESTORE — Pride ka saara maujooda data OVERWRITE ho jayega.\n\nBackup ('+(data.at||'date nahi')+') me:\n'+counts+'\n\nPakka restore karna hai?'))return;
+    try{prideFullBackup(true);}catch(e){} /* safety: restore se pehle maujooda data ka backup */
+    try{
+      PRIDE_BACKUP_KEYS.forEach(k=>localStorage.setItem(PRIDE_LS[k],JSON.stringify(data.data[k]||[])));
+      if(data.data._lock!==undefined)try{localStorage.setItem(PRIDE_LOCK_KEY,data.data._lock||'');}catch(e){}
+      if(data.data._grn_draft!==undefined)try{data.data._grn_draft?localStorage.setItem(PRIDE_DRAFT_KEY,data.data._grn_draft):localStorage.removeItem(PRIDE_DRAFT_KEY);}catch(e){}
+      if(data.data._mi_draft!==undefined)try{data.data._mi_draft?localStorage.setItem(PRIDE_MI_DRAFT_KEY,data.data._mi_draft):localStorage.removeItem(PRIDE_MI_DRAFT_KEY);}catch(e){}
+    }catch(e){toast('Restore me storage error',true);return;}
+    /* bug 1 fix: restore ko naya u-stamp do + cloud par dhakka do, taaki reload par cloud merge ise ulta na kare */
+    try{
+      const now=Date.now();
+      const stamp=a=>(a||[]).forEach(d=>{if(d)d.u=now;});
+      const dd=data.data;stamp(dd.items);stamp(dd.bills);stamp(dd.issues);stamp(dd.vendors);stamp(dd.reqs);stamp(dd.po);
+      prideLoadLocal();prideRecalc();
+      const ops=[];
+      P_ITEMS.forEach(d=>ops.push({kind:'items',doc:d}));P_BILLS.forEach(d=>ops.push({kind:'bills',doc:d}));
+      P_ISSUES.forEach(d=>ops.push({kind:'issues',doc:d}));P_VENDORS.forEach(d=>ops.push({kind:'vendors',doc:d}));
+      P_REQS.forEach(d=>ops.push({kind:'reqs',doc:d}));try{P_PO.forEach(d=>ops.push({kind:'po',doc:d}));}catch(e){}
+      ops.forEach(o=>prideOutboxPush(o));prideOutboxFlush();
+      prideAudit('Restore',dd.items.length+' items · '+dd.bills.length+' bills · '+dd.issues.length+' issues wapas aaye (cloud sync ke saath)');
+    }catch(e){}
+    toast('✅ Restore ho gaya — page reload ho raha hai');
+    setTimeout(()=>location.reload(),1200);
+  };
+  rd.onerror=()=>toast('File padhne me error',true);
+  rd.readAsText(f);
+}
+
 
 /* ================= PHASE 2 — DUPLICATE BILL CHECK + MONTH LOCK ================= */
 const PRIDE_LOCK_KEY='ginger_pride_lock_v1';
@@ -5829,7 +5861,7 @@ function prideDupBill(vendor,billNo,excludeId){
 function prideDupMsg(dup){
   return 'Ye bill pehle se hai: '+(dup.grnNo?('GRN '+dup.grnNo):('Bill '+dup.billNo))+' · '+fmtD(dup.date)+' · '+inr(dup.total);
 }
-function prideLockDate(){try{return localStorage.getItem(PRIDE_LOCK_KEY)||'';}catch(e){return '';}}
+function prideLockDate(){return prideLockRead().v;}
 function prideLockBlocked(d){
   const lk=prideLockDate();
   if(lk&&d&&d<=lk)return '🔒 Month lock hai ('+fmtD(lk)+' tak) — is date par add/modify/delete nahi ho sakta';
@@ -5846,17 +5878,17 @@ function prideLockSave(){
   const cur=prideLockDate();
   if(v===cur){toast('Koi badlav nahi');return;}
   if(!confirm(v?('Month lock lagana hai?\n'+fmtD(v)+' tak ki GRN/Issue add-modify-delete block ho jayegi.'):'Month lock hatana hai?\nPurani dates par entry phir se khul jayegi.'))return;
-  try{localStorage.setItem(PRIDE_LOCK_KEY,v);}catch(e){}
-  prideLockInfo();toast(v?'🔒 Lock lag gaya':'🔓 Lock hat gaya');
+  prideLockWrite(v,Date.now());
+  prideLockInfo();toast(v?'🔒 Lock lag gaya (sab devices par)':'🔓 Lock hat gaya');
 }
 function prideLockClear(){
   if(!prideLockDate()){toast('Lock laga hi nahi hai');return;}
   if(!confirm('Month lock hatana hai?'))return;
-  try{localStorage.removeItem(PRIDE_LOCK_KEY);}catch(e){}
+  prideLockWrite('',Date.now());
   const inp=document.getElementById('pride_lock_date');if(inp)inp.value='';
   prideLockInfo();toast('🔓 Lock hat gaya');
 }
-function prideRenderExport(){prideBackupInfo();prideLockInfo();}
+function prideRenderExport(){prideBackupInfo();prideLockInfo();prideServerPrefill();}
 
 function prideFilterDashInit(){
   const f=document.getElementById('pride_fd_from'),t=document.getElementById('pride_fd_to');
@@ -5913,7 +5945,7 @@ function prideFilterDash(){
   document.getElementById('pride_fd_body').innerHTML=h;
 }
 
-function prideDashSlipView(id){prideTab('search');setTimeout(()=>prideSlipView(id),80);}
+function prideDashSlipView(id){prideTab('store');setTimeout(()=>prideSlipView(id),80);}
 
 /* ===== GRN auto-draft: bijli jaye ya page band ho — adhura bill wapas milega ===== */
 const PRIDE_DRAFT_KEY='ginger_pride_grn_draft_v1';
@@ -6275,8 +6307,8 @@ function rep_corp_deadstock(from,to){
     const st=days>90?'Dead':days>60?'Non-moving':days>30?'Slow':'Moving';
     rows.push([it.name,it.cat||'—',q,_n2(r),_n2(prideR2(q*r)),li?fmtD(li):'—',days>90000?'—':days,st,prideR2(q*r)]);
   });
-  rows.sort((a,b)=>b[9]-a[9]);
-  const tot=prideR2(rows.filter(r=>r[7]!=='Moving').reduce((a,r)=>a+r[9],0));
+  rows.sort((a,b)=>b[8]-a[8]);
+  const tot=prideR2(rows.filter(r=>r[7]!=='Moving').reduce((a,r)=>a+(+r[8]||0),0));
   return {title:'Slow / Non-moving / Dead Stock Report',sub:_ds(from,to)+' · Slow: 30-60 din · Non-moving: 60-90 din · Dead: 90+ din bina issue',
     cols:['Item','Group','Stock Qty','Rate ₹','Stock Value ₹','Last Issue','Days','Status'],
     rows:rows.map(r=>r.slice(0,8)),foot:['','','','','KUL: '+_n2(tot),'','','']};
@@ -6318,7 +6350,7 @@ const PRIDE_REP_FNS={pur_detail:rep_pur_detail,pur_recv_sum:rep_pur_recv_sum,pur
 function prideRepInit(){
   const sel=document.getElementById('pride_rep_sel');
   if(sel&&!sel.options.length){
-    sel.innerHTML=['Accounts','Store'].map(g=>'<optgroup label="'+g+'">'+PRIDE_REPORTS.filter(r=>r.g===g).map(r=>'<option value="'+r.id+'">'+r.n+'</option>').join('')+'</optgroup>').join('');
+    sel.innerHTML=['Accounts','Store','Corporate'].map(g=>'<optgroup label="'+g+'">'+PRIDE_REPORTS.filter(r=>r.g===g).map(r=>'<option value="'+r.id+'">'+r.n+'</option>').join('')+'</optgroup>').join('');
   }
   const gs=document.getElementById('pride_rep_grp');
   if(gs&&!gs.options.length){
@@ -6646,10 +6678,11 @@ function prideMIRender(){
   document.getElementById('pride_mi_total').value=prideR2(PRIDE_MI_ROWS.reduce((a,l)=>a+l.amt,0)).toFixed(2);
 }
 function prideMIDelRow(i){PRIDE_MI_ROWS.splice(i,1);prideMIRender();prideMIDraftSoon();}
-function prideMISave(){
+async function prideMISave(){
   if(!prideNeedPM())return;
   if(!PRIDE_MI_ROWS.length){toast('Koi item nahi joda',true);return;}
-  const no=document.getElementById('pride_mi_no').value.trim()||prideNextSlipNo();
+  let no=document.getElementById('pride_mi_no').value.trim();
+  if(!PRIDE_MI_EDIT&&(no===prideNextSlipNo()||!no))no=await prideClaimNo('isl');
   const dt=document.getElementById('pride_mi_date').value||today();
   const lkMI=prideLockBlocked(dt);if(lkMI){toast(lkMI,true);return;}
   const dept=document.getElementById('pride_mi_dept').value;
@@ -6853,12 +6886,13 @@ function pridePOClear(){
   const non=document.getElementById('pride_po_no');if(non)non.value=pridePONext();
   const dt=document.getElementById('pride_po_date');if(dt)dt.value=today();
 }
-function pridePOSave(){
+async function pridePOSave(){
   if(!prideNeedPM())return;
   if(!PRIDE_PO_ROWS.length){toast('Koi item nahi joda',true);return;}
   const vendor=document.getElementById('pride_po_vendor').value.trim();
   if(!vendor){toast('Vendor likho',true);return;}
-  const no=(document.getElementById('pride_po_no').value.trim()||pridePONext());
+  let no=document.getElementById('pride_po_no').value.trim();
+  if(!PRIDE_PO_EDIT&&(!no||no===pridePONext()))no=await prideClaimNo('ppo');
   const fields={date:document.getElementById('pride_po_date').value||today(),
     vendor:vendor,delivBy:document.getElementById('pride_po_deliv').value||'',
     payTerms:document.getElementById('pride_po_pay').value.trim()||'30 days credit',
@@ -6880,7 +6914,7 @@ function pridePOSave(){
     toast('✅ PO '+no+' save ho gaya');
   }
   pridePOVendorEnsure(vendor);
-  prideSaveLocal();prideCloudPut('po',doc);
+  prideSaveAll([{kind:'po',doc:doc}]);
   pridePOClear();pridePOList();
   pridePOShowPrint(doc.id);
 }
@@ -6904,7 +6938,7 @@ function pridePOEdit(id){
 function pridePOVendorEnsure(vendor){
   if(vendor&&!P_VENDORS.some(x=>norm(x.name||'')===norm(vendor))){
     const v={id:uid(),name:vendor,phone:'',contact:'',address:'',gst:'',u:Date.now()};
-    P_VENDORS.push(v);prideSaveLocal();prideCloudPut('vendors',v);prideFillVendors();
+    P_VENDORS.push(v);prideSaveAll([{kind:'vendors',doc:v}]);prideFillVendors();
   }
 }
 function pridePOList(){
@@ -6917,7 +6951,7 @@ function pridePODel(id){
   const p=P_PO.find(x=>x.id===id);if(!p)return;
   if(!confirm('PO delete karein?\n'+p.no+' · '+p.vendor+' · '+inr(p.total)))return;
   P_PO=P_PO.filter(x=>x.id!==id);
-  prideSaveLocal();prideCloudDel('po',id);
+  prideSaveAll([{kind:'po',del:id}]);
   prideAudit('PO delete',p.no+' · '+p.vendor+' · '+inr(p.total));
   pridePOList();toast('🗑 PO hataya');
 }
@@ -6981,6 +7015,270 @@ function pridePOPrintCur(){
   if(!pe||!pe.innerHTML){toast('Pehle kisi PO ka Print dabao',true);return;}
   window.print();
 }
+
+/* ================= PHASE 1 — SYNC SAFETY + MIGRATION (2026-10-09) =================
+   Data safety first: kabhi key/collection rename-delete nahi; sirf ADD.
+   - Outbox (offline retry queue) + sync badge
+   - Tombstones (delete sync)
+   - Cloud-backed counters (GRN/ISL/PPO unique numbering)
+   - Data version + migration (pehle auto-backup download, phir migrate)
+   - Damaged-records detector
+*/
+const PRIDE_DATA_VERSION=2;
+const PRIDE_VER_KEY='ginger_pride_dataver_v1';
+const PRIDE_OUTBOX_KEY='ginger_pride_outbox_v1';
+const PRIDE_TOMB_KEY='ginger_pride_tomb_v1';
+const PRIDE_FB_TOMB='pm_pride_tomb';
+const PRIDE_FB_COUNTERS='pride_counters';
+const PRIDE_LOCK_U_KEY='ginger_pride_lock_u_v1';
+
+/* ---------- offline outbox (bug 4) ---------- */
+function prideOutboxGet(){try{return JSON.parse(localStorage.getItem(PRIDE_OUTBOX_KEY)||'[]');}catch(e){return[];}}
+function prideOutboxSet(q){try{localStorage.setItem(PRIDE_OUTBOX_KEY,JSON.stringify(q.slice(-500)));}catch(e){}}
+function prideOutboxPush(op){const q=prideOutboxGet();q.push(Object.assign({ts:Date.now()},op));prideOutboxSet(q);prideSyncBadge();}
+var PRIDE_FLUSHING=false; /* var: bottom-init se bhi safe (let TDZ crash se bachao) */
+async function prideOutboxFlush(){
+  if(PRIDE_FLUSHING)return;PRIDE_FLUSHING=true;
+  try{
+    if(!window._fbReady||!window._fb){prideSyncBadge();return;}
+    const q=prideOutboxGet();if(!q.length){prideSyncBadge();return;}
+    const remain=[];
+    for(const op of q){
+      let ok=false;
+      try{
+        if(op.tomb)ok=await window._fb.saveToCol(PRIDE_FB_TOMB,op.kind+':'+op.id,{kind:op.kind,id:op.id,u:op.ts||Date.now()});
+        else if(op.del)ok=await window._fb.deleteFromCol(PRIDE_FB[op.kind],op.id);
+        else if(op.doc)ok=await window._fb.saveToCol(PRIDE_FB[op.kind],op.doc.id,op.doc);
+        ok=ok!==false;
+      }catch(e){ok=false;}
+      if(!ok)remain.push(op);
+    }
+    prideOutboxSet(remain);
+    if(remain.length<q.length)prideAudit('Cloud sync', (q.length-remain.length)+' pending changes cloud pahunche');
+  }finally{PRIDE_FLUSHING=false;prideSyncBadge();}
+}
+function prideSyncBadge(){
+  const el=document.getElementById('pride_sync_badge');if(!el)return;
+  const n=prideOutboxGet().length;
+  const on=!!(window._fbReady&&window._fb);
+  el.textContent=n?('⏳ '+n+' pending'):(on?'☁ synced':'📴 offline');
+  el.style.color=n?'#b45309':(on?'#15803d':'#6b7280');
+}
+
+/* ---------- tombstones (bug 5) ---------- */
+function prideTombAdd(kind,id){
+  try{
+    const t=JSON.parse(localStorage.getItem(PRIDE_TOMB_KEY)||'[]');
+    t.push({kind:kind,id:id,u:Date.now()});
+    localStorage.setItem(PRIDE_TOMB_KEY,JSON.stringify(t.slice(-2000)));
+  }catch(e){}
+  prideOutboxPush({tomb:1,kind:kind,id:id});
+}
+async function prideTombApply(){
+  try{
+    if(!window._fbReady||!window._fb||!window._fb.loadCol)return;
+    const cloud=await window._fb.loadCol(PRIDE_FB_TOMB);
+    if(!cloud||!cloud.length)return;
+    const byKind={};
+    cloud.forEach(t=>{if(t&&t.id){const k=t.kind+':'+t.id;if(!byKind[k]||(t.u||0)>(byKind[k].u||0))byKind[k]=t;}});
+    const kill=(arr,kind)=>{let ch=false;
+      for(let i=arr.length-1;i>=0;i--){const d=arr[i];if(!d||!d.id)continue;
+        const t=byKind[kind+':'+d.id];
+        if(t&&(t.u||0)>=((d.u||0)-1000)){arr.splice(i,1);ch=true;}};
+      return ch;};
+    let ch=false;
+    ch=kill(P_ITEMS,'items')||ch;ch=kill(P_BILLS,'bills')||ch;ch=kill(P_ISSUES,'issues')||ch;
+    ch=kill(P_VENDORS,'vendors')||ch;ch=kill(P_REQS,'reqs')||ch;
+    try{ch=kill(P_PO,'po')||ch;}catch(e){}
+    if(ch){prideRecalc();prideSaveLocal();if(PRIDE_TAB)prideRender();}
+  }catch(e){}
+}
+
+/* ---------- cloud-backed unique numbering (bug 15) ---------- */
+function prideLocalMaxNo(kind){
+  let mx=0;
+  if(kind==='grn')P_BILLS.forEach(b=>{const m=String(b.grnNo||'').match(/(\d+)/);if(m)mx=Math.max(mx,+m[1]);});
+  if(kind==='isl')P_ISSUES.forEach(s=>{const m=/^ISL-(\d+)$/.exec(s.no||'');if(m)mx=Math.max(mx,+m[1]);});
+  if(kind==='ppo')try{P_PO.forEach(p=>{const m=/^PPO-(\d+)$/.exec(p.no||'');if(m)mx=Math.max(mx,+m[1]);});}catch(e){}
+  return mx;
+}
+async function prideClaimNo(kind){
+  let n=prideLocalMaxNo(kind)+1;
+  try{
+    if(window._fbReady&&window._fb&&window._fb.loadSetting){
+      const c=await window._fb.loadSetting(PRIDE_FB_COUNTERS)||{};
+      n=Math.max(n,(+c[kind]||0)+1);
+      try{await window._fb.saveSetting(PRIDE_FB_COUNTERS,Object.assign({},c,{[kind]:n,u:Date.now()}));}catch(e){}
+    }
+  }catch(e){}
+  n=Math.max(n,prideLocalMaxNo(kind)+1);
+  const pad=String(n).padStart(4,'0');
+  return kind==='grn'?pad:(kind==='isl'?'ISL-'+pad:'PPO-'+pad);
+}
+/* FIFO auto-split: ek line ki qty ko sabse purane lots me baanto (bug 11-A5) */
+function prideFifoSplit(itemId,qty,opts){
+  opts=opts||{};
+  const lots=prideItemLots(itemId,{excludeId:opts.excludeId||'',extra:opts.extra||[]}).filter(l=>l.bal>0);
+  const out=[];let left=prideR2(qty);
+  lots.forEach(l=>{
+    if(left<=0)return;
+    const take=Math.min(l.bal,left);
+    out.push({lotKey:l.key,lotLabel:(l.date?fmtD(l.date):'')+(l.grn?' · '+l.grn:''),qty:prideR2(take)});
+    left=prideR2(left-take);
+  });
+  if(left>0.0001)out.push({lotKey:'',lotLabel:'Auto',qty:prideR2(left)});
+  return out;
+}
+
+/* ---------- month lock: cloud sync (bug 11b) ---------- */
+function prideLockRead(){
+  try{
+    const raw=localStorage.getItem(PRIDE_LOCK_KEY)||'';
+    if(!raw)return {v:'',u:0};
+    if(raw.charAt(0)==='{'){const o=JSON.parse(raw);return {v:o.v||'',u:+o.u||0};}
+    return {v:raw,u:0};
+  }catch(e){return {v:'',u:0};}
+}
+function prideLockWrite(v,u){
+  try{localStorage.setItem(PRIDE_LOCK_KEY,JSON.stringify({v:v,u:u||Date.now()}));}catch(e){}
+  try{if(window._fbReady&&window._fb&&window._fb.saveSetting)window._fb.saveSetting('pride_lock',{v:v,u:u||Date.now()});}catch(e){}
+}
+async function prideLockPull(){
+  try{
+    if(!window._fbReady||!window._fb||!window._fb.loadSetting)return;
+    const c=await window._fb.loadSetting('pride_lock');
+    if(c&&c.v!==undefined){
+      const local=prideLockRead();
+      if((+c.u||0)>(local.u||0)){prideLockWrite(c.v,+c.u||0);prideLockInfo();}
+    }
+  }catch(e){}
+}
+
+/* ---------- data version + migration (hard rule 2) ---------- */
+function prideFullBackupData(){
+  const data={app:'pride-hospitality',v:PRIDE_DATA_VERSION,at:new Date().toISOString(),data:{}};
+  PRIDE_BACKUP_KEYS.forEach(k=>{try{data.data[k]=JSON.parse(localStorage.getItem(PRIDE_LS[k])||'[]');}catch(e){data.data[k]=[];}});
+  try{data.data._lock=localStorage.getItem(PRIDE_LOCK_KEY)||'';}catch(e){data.data._lock='';}
+  try{data.data._grn_draft=localStorage.getItem(PRIDE_DRAFT_KEY)||'';}catch(e){data.data._grn_draft='';}
+  try{data.data._mi_draft=localStorage.getItem(PRIDE_MI_DRAFT_KEY)||'';}catch(e){data.data._mi_draft='';}
+  return data;
+}
+function prideFullBackup(silent){
+  const data=prideFullBackupData();
+  const blob=new Blob([JSON.stringify(data)],{type:'application/json'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+  a.download='Pride_FullBackup_'+today()+'.json';
+  document.body.appendChild(a);a.click();a.remove();
+  setTimeout(()=>URL.revokeObjectURL(a.href),5000);
+  if(!silent)toast('💾 Full backup download ho gaya');
+  return data;
+}
+/* ---------- server backup (Hostinger) ---------- */
+function prideServerInfo(msg){const el=document.getElementById('pride_srv_info');if(el)el.textContent=msg;}
+function prideServerPrefill(){
+  try{
+    const u=localStorage.getItem('ginger_pride_server_url_v1')||'';
+    const k=localStorage.getItem('ginger_pride_server_key_v1')||'';
+    const l=localStorage.getItem('ginger_pride_server_last_v1')||'';
+    const ue=document.getElementById('pride_srv_url');if(ue&&u)ue.value=u;
+    const ke=document.getElementById('pride_srv_key');if(ke&&k)ke.value=k;
+    if(l)prideServerInfo('Aakhri: '+l);
+  }catch(e){}
+}
+function prideServerBackup(){
+  if(!prideNeedPM())return;
+  const url=((document.getElementById('pride_srv_url')||{}).value||'').trim();
+  const key=(document.getElementById('pride_srv_key')||{}).value||'';
+  if(!/^https:\/\//i.test(url)){toast('Sahi https:// URL likho',1);return;}
+  if(!key){toast('Secret key likho',1);return;}
+  try{localStorage.setItem('ginger_pride_server_url_v1',url);localStorage.setItem('ginger_pride_server_key_v1',key);}catch(e){}
+  prideServerInfo('Bhej rahe hain… ⏳');
+  let body='';
+  try{body='key='+encodeURIComponent(key)+'&data='+encodeURIComponent(JSON.stringify(prideFullBackupData()));}
+  catch(e){prideServerInfo('❌ Backup taiyaar nahi ho paya');return;}
+  fetch(url,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:body})
+    .then(r=>r.json().catch(()=>{throw new Error('Server se sahi jawab nahi aaya (HTTP '+r.status+')');}))
+    .then(j=>{
+      if(j&&j.ok){
+        const t=new Date().toLocaleString('en-IN');
+        try{localStorage.setItem('ginger_pride_server_last_v1',t+' · '+j.file);}catch(e){}
+        prideServerInfo('✅ '+t+' — '+j.file+' ('+j.size_kb+' KB)');
+        prideAudit('SERVER_BACKUP','Server backup bheja: '+(j.file||''));
+        toast('Server backup ho gaya ✅');
+      }else throw new Error((j&&j.error)||'Server ne mana kar diya');
+    })
+    .catch(e=>{prideServerInfo('❌ '+(e.message||e));toast('Server backup fail: '+(e.message||e),1);});
+}
+function prideMigrate(){
+  let v=0;try{v=+localStorage.getItem(PRIDE_VER_KEY)||0;}catch(e){}
+  if(v>=PRIDE_DATA_VERSION)return;
+  /* hard rule 2: migrate se PEHLE auto full backup download */
+  try{prideFullBackup(true);prideAudit('Auto-backup (migration)','v'+v+' → v'+PRIDE_DATA_VERSION+' se pehle full backup download');}catch(e){}
+  try{
+    /* backfill: bills par vendorId (naam se match) */
+    const vByName={};P_VENDORS.forEach(x=>{vByName[norm(x.name)]=x.id;});
+    P_BILLS.forEach(b=>{if(!b.vendorId&&b.vendor&&vByName[norm(b.vendor)])b.vendorId=vByName[norm(b.vendor)];if(!b.u)b.u=Date.now();});
+    P_ISSUES.forEach(s=>{if(!s.u)s.u=Date.now();});
+    P_ITEMS.forEach(it=>{if(!it.u)it.u=Date.now();});
+    /* backfill: purane direct-issues par billId (remark me GRN no. se) */
+    P_ISSUES.forEach(s=>{
+      if(s.billId||!(s.remark||'').includes('(auto)'))return;
+      const m=(s.remark||'').match(/Direct issue · (\d+)/);
+      if(!m)return;
+      const b=P_BILLS.find(x=>String(x.grnNo||'')===m[1]);
+      if(b)s.billId=b.id;
+    });
+    prideSaveLocal();
+  }catch(e){}
+  try{localStorage.setItem(PRIDE_VER_KEY,String(PRIDE_DATA_VERSION));}catch(e){}
+  toast('✅ Data v'+PRIDE_DATA_VERSION+' par migrate ho gaya (backup download ho chuka hai)');
+}
+
+/* ---------- damaged records detector (Phase 1) ---------- */
+function prideDamagedScan(){
+  const out={bills:[],issues:[],items:[]};
+  const seenB={},seenI={},seenIt={};
+  (P_AUDIT||[]).forEach(a=>{
+    const d=a.detail||'';
+    if(a.action==='Bill edit (Data Editor)'){const m=d.match(/^([^\s·]+)/);if(m)seenB[m[1]]=a.ts||a.at||'';}
+    if(a.action==='Issue edit (Data Editor)'){seenI[d.split('·')[0].trim()]=a.ts||a.at||'';}
+    if(a.action==='Item edit (Data Editor)'){seenIt[d.split('·')[0].trim()]=a.ts||a.at||'';}
+  });
+  /* heuristic: DE-rebuilt bill lines = sirf {id,name,qty,rate,amt} keys */
+  P_BILLS.forEach(b=>{
+    const sig=(b.items||[]).length&& (b.items||[]).every(l=>{const k=Object.keys(l).sort().join(',');return k==='amt,id,name,qty,rate';});
+    const byAudit=Object.keys(seenB).some(no=>b.billNo===no||(b.id&&seenB[b.id]));
+    if(sig||byAudit)out.bills.push(b);
+  });
+  P_ISSUES.forEach(s=>{if(Object.keys(seenI).some(k=>(s.no||'')===k||(s.id&&seenI[s.id])))out.issues.push(s);});
+  P_ITEMS.forEach(it=>{
+    if(it.cat==='ARCHIVED / INACTIVE ITEMS'||Object.keys(seenIt).some(k=>it.name===k))out.items.push(it);
+  });
+  return out;
+}
+function prideRenderDamaged(){
+  const box=document.getElementById('pride-de-damaged');if(!box)return;
+  const d=prideDamagedScan();
+  const rowB=d.bills.map(b=>'<tr><td><b>'+esc(b.billNo||'')+'</b></td><td>'+fmtD(b.date||'')+'</td><td>'+esc(b.vendor||'')+'</td><td style="text-align:right">'+inr(b.total||0)+'</td><td><button class="btn btn-sm" onclick="prideDETab(\'bills\')">Data Editor me kholo</button></td></tr>').join('');
+  const rowI=d.issues.map(s=>'<tr><td><b>'+esc(s.no||'')+'</b></td><td>'+fmtD(s.date||'')+'</td><td>'+esc(s.dept||'')+'</td><td style="text-align:right">'+inr(s.total||0)+'</td><td><button class="btn btn-sm" onclick="prideDETab(\'issues\')">Data Editor me kholo</button></td></tr>').join('');
+  const rowIt=d.items.map(it=>'<tr><td><b>'+esc(it.name)+'</b></td><td>'+esc(it.cat||'')+'</td><td style="text-align:right">'+it.rate+'</td><td><button class="btn btn-sm" onclick="prideDETab(\'items\')">Data Editor me kholo</button></td></tr>').join('');
+  box.innerHTML='<div style="font-size:12px;color:var(--ink3);margin-bottom:8px">Audit log se pata chale sambhavit-kharab records — sirf inhe check karo, baaki data ko haath mat lagao.</div>'+
+    '<h4>🧾 Bills ('+d.bills.length+')</h4><div class="table-scroll"><table><tr><th>Bill No</th><th>Date</th><th>Vendor</th><th>Total</th><th></th></tr>'+(rowB||'<tr><td colspan="5" style="color:var(--ink3)">Koi damaged bill nahi mila</td></tr>')+'</table></div>'+
+    '<h4 style="margin-top:10px">📤 Issues ('+d.issues.length+')</h4><div class="table-scroll"><table><tr><th>Ref No</th><th>Date</th><th>Dept</th><th>Total</th><th></th></tr>'+(rowI||'<tr><td colspan="5" style="color:var(--ink3)">Koi damaged issue nahi mila</td></tr>')+'</table></div>'+
+    '<h4 style="margin-top:10px">📦 Items ('+d.items.length+')</h4><div class="table-scroll"><table><tr><th>Item</th><th>Category</th><th>Rate</th><th></th></tr>'+(rowIt||'<tr><td colspan="4" style="color:var(--ink3)">Koi damaged item nahi mila</td></tr>')+'</table></div>';
+}
+/* boot hook: migration + lock pull + outbox flush + badge */
+(function(){
+  const boot=function(){
+    try{prideMigrate();}catch(e){}
+    try{prideLockPull();}catch(e){}
+    try{prideOutboxFlush();}catch(e){}
+    try{prideTombApply();}catch(e){}
+    try{prideSyncBadge();}catch(e){}
+  };
+  window.addEventListener('fbReady',function(){try{prideLockPull();}catch(e){}try{prideOutboxFlush();}catch(e){}try{prideTombApply();}catch(e){}try{prideSyncBadge();}catch(e){}});
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot);else boot();
+})();
 
 </script>
 </body>
