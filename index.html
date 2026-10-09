@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+<meta name="robots" content="noindex,nofollow,noarchive">
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Purchase MIS — Ginger Jaipur</title>
@@ -1522,7 +1523,8 @@ tfoot td{font-weight:800;background:#f0f5f3;border-top:2px solid var(--teal);fon
             <div style="display:flex;flex-direction:column;gap:6px">
               <input id="pride_srv_url" class="smini" style="width:100%" placeholder="https://hariyalibasket.com/pride-vault/receiver.php" autocomplete="off">
               <input id="pride_srv_key" class="smini" type="password" style="width:100%" placeholder="Secret key" autocomplete="off">
-              <div><button class="btn btn-primary btn-sm" onclick="prideServerBackup()">⬆ Vault me Bhejo</button></div>
+              <div><button class="btn btn-primary btn-sm" onclick="prideServerBackup()">⬆ Vault me Bhejo</button>
+              <button class="btn btn-sm" onclick="prideServerTest()">🔌 Test</button></div>
               <div id="pride_srv_info" style="font-size:12px;color:var(--ink3)">—</div>
             </div></div></div>
         </div>
@@ -1534,7 +1536,8 @@ tfoot td{font-weight:800;background:#f0f5f3;border-top:2px solid var(--teal);fon
     <div class="card"><div class="card-head"><h2>📑 Reports</h2></div>
       <div class="card-body">
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;align-items:end">
-          <div style="flex:2;min-width:220px"><label style="font-size:11px;color:var(--ink3)">Report</label><br><select id="pride_rep_sel" class="smini" style="width:100%"></select></div>
+          <div style="flex:2;min-width:220px"><label style="font-size:11px;color:var(--ink3)">Report</label><br><select id="pride_rep_sel" class="smini" style="width:100%" onchange="prideRepSelChange()"></select></div>
+          <div id="pride_rep_deptwrap" class="hide"><label style="font-size:11px;color:var(--ink3)">Department</label><br><select id="pride_rep_dept" class="smini" style="width:170px"><option value="">Sab departments</option></select></div>
           <div><label style="font-size:11px;color:var(--ink3)">Date From</label><br><input id="pride_rep_from" class="smini" type="date" style="width:140px"></div>
           <div><label style="font-size:11px;color:var(--ink3)">Date To</label><br><input id="pride_rep_to" class="smini" type="date" style="width:140px"></div>
           <div><label style="font-size:11px;color:var(--ink3)">Group</label><br><select id="pride_rep_grp" class="smini" style="width:170px"></select></div>
@@ -5821,6 +5824,22 @@ function prideRestoreFile(evOrInput){
     let data=null;
     try{data=JSON.parse(rd.result);}catch(e){data=null;}
     if(!data||!data.data||typeof data.data!=='object'){toast('Ye backup file sahi nahi hai',true);return;}
+    /* vault full-device backup (ginger-store-full): saari ginger_* keys seedha localStorage me */
+    if(data.app==='ginger-store-full'){
+      const keys=Object.keys(data.data).filter(k=>k.indexOf('ginger_')===0);
+      if(!keys.length){toast('Vault backup me koi data nahi mila',true);return;}
+      if(!confirm('⚠️ VAULT RESTORE — is device ka saara app data OVERWRITE ho jayega.\n\nVault backup ('+(data.at||'date nahi')+') me: '+keys.length+' datasets\n\nPakka restore karna hai?'))return;
+      try{prideFullBackup(true);}catch(e){} /* safety: pehle maujooda ka backup */
+      try{
+        keys.forEach(k=>{const v=data.data[k];try{localStorage.setItem(k,typeof v==='string'?v:JSON.stringify(v));}catch(e){}});
+        try{localStorage.setItem('ginger_pride_server_last_v1',new Date().toLocaleString('en-IN')+' · vault restore');}catch(e){}
+      }catch(e){toast('Restore me storage error',true);return;}
+      try{prideLoadLocal();prideRecalc();}catch(e){}
+      try{prideAudit('Restore','Vault se full restore: '+keys.length+' datasets wapas aaye');}catch(e){}
+      toast('✅ Vault restore ho gaya — page reload ho raha hai');
+      setTimeout(()=>location.reload(),1200);
+      return;
+    }
     const counts=PRIDE_BACKUP_KEYS.map(k=>k+': '+((data.data[k]||[]).length+' records')).join('\n');
     if(!confirm('⚠️ RESTORE — Pride ka saara maujooda data OVERWRITE ho jayega.\n\nBackup ('+(data.at||'date nahi')+') me:\n'+counts+'\n\nPakka restore karna hai?'))return;
     try{prideFullBackup(true);}catch(e){} /* safety: restore se pehle maujooda data ka backup */
@@ -6035,6 +6054,7 @@ const PRIDE_REPORTS=[
  {id:'daily_txn',g:'Store',n:'Daily Transaction List'},
  {id:'daily_txn_sum',g:'Store',n:'Daily Transaction List Summary'},
  {id:'dept_issue',g:'Store',n:'Department Wise Issue'},
+ {id:'smart_issue',g:'Store',n:'📋 Smart Issue Report (View + Modify)'},
  {id:'dept_issue_sum',g:'Store',n:'Department Wise Issue Summary'},
  {id:'issue_detail',g:'Store',n:'Issue Detail With Department'},
  {id:'item_issue',g:'Store',n:'Item Wise Issue Detail'},
@@ -6357,6 +6377,11 @@ function prideRepInit(){
     const cats=[...new Set(PRIDE_CATS.concat(P_ITEMS.map(i=>i.cat).filter(Boolean)))];
     gs.innerHTML='<option value="">Sab group</option>'+cats.map(c=>'<option>'+c+'</option>').join('');
   }
+  const dp=document.getElementById('pride_rep_dept');
+  if(dp&&dp.options.length<=1){
+    dp.innerHTML='<option value="">Sab departments</option>'+PRIDE_DEPTS.map(d=>'<option>'+d+'</option>').join('');
+  }
+  try{prideRepSelChange();}catch(e){}
   const f=document.getElementById('pride_rep_from'),t=document.getElementById('pride_rep_to');
   if(f&&!f.value)f.value=today();
   if(t&&!t.value)t.value=today();
@@ -6370,6 +6395,7 @@ function prideRepRun(){
   const gf=document.getElementById('pride_rep_grp').value;
   const q=(document.getElementById('pride_rep_q').value||'').trim().toLowerCase();
   let r;
+  if(id==='smart_issue'){prideRepSmartIssue();return;}
   if(id==='pur_group_sum'){r=rep_grp_pur(d.from,d.to,gf);}
   else{r=PRIDE_REP_FNS[id](d.from,d.to);}
   if(!r)return;
@@ -6421,6 +6447,71 @@ function prideRepBillGo(id,act){
   if(act==='print'){prideBillPrint(id);return;}
   if(act==='view'){prideTab('bills');setTimeout(()=>prideBillView(id),60);return;}
   if(act==='edit'){if(!prideNeedPM()){toast('Sirf Purchase Manager',true);return;}prideTab('dataeditor');prideDETab('bills');setTimeout(()=>prideDEBillEdit(id),120);return;}
+}
+/* ---------- 📋 Smart Issue Report: date/dept filter + inline View + Modify ---------- */
+function prideRepSelChange(){
+  const id=(document.getElementById('pride_rep_sel')||{}).value||'';
+  const w=document.getElementById('pride_rep_deptwrap');if(w)w.classList.toggle('hide',id!=='smart_issue');
+}
+function prideRepSmartIssue(){
+  const d=prideRepDates();
+  const dept=(document.getElementById('pride_rep_dept')||{}).value||'';
+  const q=((document.getElementById('pride_rep_q')||{}).value||'').trim().toLowerCase();
+  let rows=(P_ISSUES||[]).filter(s=>(s.date||'')>=d.from&&(s.date||'')<=d.to);
+  if(dept)rows=rows.filter(s=>(s.dept||'')===dept);
+  if(q)rows=rows.filter(s=>((s.no||'')+' '+(s.dept||'')+' '+((s.items||[]).map(l=>l.name||'').join(' '))).toLowerCase().includes(q));
+  rows.sort((a,b)=>(b.date||'').localeCompare(a.date||'')||String(b.no||'').localeCompare(String(a.no||'')));
+  const totV=rows.reduce((a,s)=>a+(+s.total||0),0);
+  const byDept={};
+  rows.forEach(s=>{const k=s.dept||'—';byDept[k]=byDept[k]||{n:0,v:0};byDept[k].n++;byDept[k].v+=+s.total||0;});
+  const dk=Object.keys(byDept).sort();
+  /* Excel/Print ke liye standard format me bhi rakho */
+  PRIDE_REP_CUR={title:'Smart Issue Report',sub:fmtD(d.from)+' se '+fmtD(d.to)+(dept?' · '+dept:'')+(q?' · "'+q+'"':''),cols:['Date','Ref No','Department','Items','Total','By'],rows:rows.map(s=>[fmtD(s.date),s.no,s.dept,(s.items||[]).length,inr(s.total),s.by||'—']),foot:['','Kul: '+rows.length+' slips','','',inr(totV),''],n:rows.length};
+  const box=document.getElementById('pride_rep_out');if(!box)return;
+  let h='<div style="margin-bottom:8px"><b style="font-size:15px">📋 Smart Issue Report</b><div style="font-size:12px;color:var(--ink3)">'+fmtD(d.from)+' se '+fmtD(d.to)+(dept?' · '+esc(dept):' · Sab departments')+(q?' · 🔍 '+esc(q):'')+' · '+rows.length+' slips · Kul '+inr(totV)+'</div></div>';
+  if(dk.length){
+    h+='<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">'+dk.map(k=>'<span style="background:#eef5f2;border:1px solid #d7e8e0;border-radius:8px;padding:6px 10px;font-size:12px"><b>'+esc(k)+'</b>: '+byDept[k].n+' slips · '+inr(byDept[k].v)+'</span>').join('')+'</div>';
+  }
+  if(!rows.length){
+    box.innerHTML=h+'<div style="color:var(--ink3);font-size:13px">Is filter me koi issue slip nahi mili.</div>';return;
+  }
+  h+='<div class="table-scroll"><table><tr><th>Date</th><th>Ref No</th><th>Department</th><th style="text-align:center">Items</th><th style="text-align:right">Total</th><th>By</th><th style="white-space:nowrap">Action</th></tr>'+
+    rows.map(s=>{
+      const locked=prideLockBlocked(s.date);
+      return '<tr id="sir_'+s.id+'"><td>'+fmtD(s.date)+'</td><td><b>'+esc(s.no||'—')+'</b></td><td>'+esc(s.dept||'—')+'</td><td style="text-align:center">'+(s.items||[]).length+'</td><td style="text-align:right"><b>'+inr(s.total)+'</b></td><td style="font-size:12px">'+esc(s.by||'—')+'</td>'+
+      '<td style="white-space:nowrap"><button class="btn btn-sm" onclick="prideSmartIssueGo(\''+s.id+'\',\'view\')" title="Slip dekho">👁</button> '+
+      (locked?'<button class="btn btn-sm" disabled title="🔒 Month lock" style="opacity:.5">🔒</button>':'<button class="btn btn-sm" onclick="prideSmartIssueGo(\''+s.id+'\',\'edit\')" title="Modify karo">✏️</button>')+' '+
+      '<button class="btn btn-sm" onclick="prideSmartIssueGo(\''+s.id+'\',\'print\')" title="Slip print">🖨</button></td></tr>';
+    }).join('')+'</table></div>'+
+    '<div style="font-size:12px;color:var(--ink3);margin-top:6px">👁 = slip yahin dekho · ✏️ = Data Editor me modify (stock auto-recalc + audit) · 🔒 = Month Lock (modify band)</div>';
+  box.innerHTML=h;
+  box.scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+function prideSmartIssueGo(id,act){
+  if(act==='print'){prideSlipPrint(id);return;}
+  if(act==='view'){
+    const s=(P_ISSUES||[]).find(x=>x.id===id);if(!s)return;
+    const old=document.getElementById('sir_v_'+id);
+    document.querySelectorAll('[id^="sir_v_"]').forEach(e=>e.remove());
+    if(old)return;
+    const tr=document.getElementById('sir_'+id);if(!tr)return;
+    const nr=document.createElement('tr');nr.id='sir_v_'+id;
+    nr.innerHTML='<td colspan="7" style="background:#f6faf8;padding:10px"><b>🧾 Slip: '+esc(s.no||'—')+'</b> <span style="font-size:12px;color:var(--ink3)">'+fmtD(s.date)+' · '+esc(s.dept||'')+(s.remark?' · '+esc(s.remark):'')+'</span>'+
+      '<div class="table-scroll" style="margin-top:6px"><table><tr><th>#</th><th>Item</th><th style="text-align:center">Qty</th><th>Unit</th><th style="text-align:right">Rate</th><th style="text-align:right">Amount</th></tr>'+
+      (s.items||[]).map((l,i)=>'<tr><td>'+(i+1)+'</td><td>'+esc(l.name||'')+'</td><td style="text-align:center">'+l.qty+'</td><td>'+esc(l.unit||'')+'</td><td style="text-align:right">'+inr(l.rate)+'</td><td style="text-align:right"><b>'+inr(l.amt!=null?l.amt:(+l.qty||0)*(+l.rate||0))+'</b></td></tr>').join('')+
+      '</table></div><div style="text-align:right;margin-top:6px"><b>Kul: '+inr(s.total)+'</b> &nbsp;<button class="btn btn-sm" onclick="prideSmartIssueGo(\''+s.id+'\',\'print\')">🖨 Slip Print</button></div></td>';
+    tr.after(nr);
+    nr.scrollIntoView({behavior:'smooth',block:'nearest'});
+    return;
+  }
+  if(act==='edit'){
+    if(!prideNeedPM()){toast('Sirf Purchase Manager',true);return;}
+    const s=(P_ISSUES||[]).find(x=>x.id===id);if(!s)return;
+    const lk=prideLockBlocked(s.date);if(lk){toast('🔒 '+lk,true);return;}
+    prideTab('dataeditor');prideDETab('issues');
+    setTimeout(()=>{prideDEIssueEdit(id);const b=document.getElementById('des_'+id);if(b)b.scrollIntoView({behavior:'smooth',block:'center'});},180);
+    return;
+  }
 }
 
 /* ---------- REQUISITION + MATERIAL ISSUE ---------- */
@@ -7212,6 +7303,8 @@ function prideServerBackup(){
   let body='';
   try{body='key='+encodeURIComponent(key)+'&data='+encodeURIComponent(JSON.stringify(prideVaultBackupData()));}
   catch(e){prideServerInfo('❌ Backup taiyaar nahi ho paya');return;}
+  const _kb=Math.round(body.length/1024);
+  prideServerInfo('Bhej rahe hain… '+(_kb>1024?(_kb/1024).toFixed(1)+' MB':_kb+' KB')+' ⏳');
   fetch(url,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:body})
     .then(r=>r.json().catch(()=>{throw new Error('Server se sahi jawab nahi aaya (HTTP '+r.status+')');}))
     .then(j=>{
@@ -7224,6 +7317,25 @@ function prideServerBackup(){
       }else throw new Error((j&&j.error)||'Server ne mana kar diya');
     })
     .catch(e=>{prideServerInfo('❌ '+(e.message||e));toast('Server backup fail: '+(e.message||e),1);});
+}
+/* vault connection test — chhota POST; bada backup nahi bhejta */
+function prideServerTest(){
+  if(!prideNeedPM())return;
+  const url=((document.getElementById('pride_srv_url')||{}).value||'').trim();
+  const key=(document.getElementById('pride_srv_key')||{}).value||'';
+  if(!/^https:\/\//i.test(url)){toast('Sahi https:// URL likho',1);return;}
+  if(!key){toast('Secret key likho',1);return;}
+  try{localStorage.setItem('ginger_pride_server_url_v1',url);localStorage.setItem('ginger_pride_server_key_v1',key);}catch(e){}
+  prideServerInfo('Connection test… ⏳');
+  fetch(url,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},
+    body:'key='+encodeURIComponent(key)+'&data='+encodeURIComponent('{"app":"ginger-store-full","data":{"_ping":1},"keys":[]}')})
+    .then(r=>r.json().then(j=>({st:r.status,j:j})).catch(()=>{throw new Error('HTTP '+r.status+' par JSON nahi aaya');}))
+    .then(x=>{
+      if(x.j&&x.j.ok)prideServerInfo('🔌 Connection OK — server taiyaar hai');
+      else if(x.j&&x.j.error)prideServerInfo('🔌 Connection OK (server bola: '+x.j.error+')');
+      else prideServerInfo('🔌 Server mila, par ajeeb jawab');
+    })
+    .catch(e=>prideServerInfo('❌ Connection FAIL: '+(e.message||e)+' — URL copy-paste karo, net check karo'));
 }
 function prideMigrate(){
   let v=0;try{v=+localStorage.getItem(PRIDE_VER_KEY)||0;}catch(e){}
