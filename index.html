@@ -5664,7 +5664,7 @@ function prideBinLedger(id){
   const rows=[];
   P_BILLS.forEach(b=>{(b.items||[]).forEach(l=>{if(l.id===id)rows.push({date:b.date,type:'R',part:'Receipt · '+b.vendor+' · Bill '+b.billNo,in:+l.qty||0,out:0});});});
   P_ISSUES.forEach(s=>{(s.items||[]).forEach(l=>{if(l.id===id)rows.push({date:s.date,type:'I',part:'Issue · '+s.dept+(s.remark?' · '+s.remark:''),in:0,out:+l.qty||0});});});
-  rows.sort((a,b)=>(a.date||'').localeCompare(b.date||'')||(a.type<b.type?-1:1));
+  rows.sort((a,b)=>(a.date||'').localeCompare(b.date||'')||(a.type>b.type?-1:1)); /* same date: Receipt pehle, Issue baad me — minus display fix */
   return rows;
 }
 function prideBinShow(){
